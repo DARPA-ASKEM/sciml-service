@@ -16,4 +16,7 @@ server = FastAPI(
 
 @server.get("/logs")
 def fetch_logs():
+    """
+    Perform basic healthcheck
+    """
     return {"message": "No logs being created yet"}

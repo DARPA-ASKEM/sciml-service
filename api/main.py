@@ -15,4 +15,4 @@ def cli(host: str, port: int, dev: bool) -> None:
     Execute data store API using uvicorn
     """
     echo("Starting API...")
-    uvicorn_run(f"api.server:server", host=host, port=port, reload=dev)
+    uvicorn_run("api.server:server", host=host, port=port, reload=dev)
