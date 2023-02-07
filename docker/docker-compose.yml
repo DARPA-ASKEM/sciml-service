@@ -1,0 +1,17 @@
+version: "3.9"
+networks:
+  sim-execution:
+    driver: bridge
+    name: sim-execution
+services:
+  api:
+    container_name: executor-api
+    build: 
+      context: ../
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "9090:9090"
+    env_file:
+      - ../config.env
+    networks:
+      - sim-execution

@@ -1,0 +1,17 @@
+FROM python:3.10
+WORKDIR /api
+RUN pip install poetry
+ADD poetry.lock poetry.lock
+ADD pyproject.toml pyproject.toml
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-root --without dev,workflow
+COPY tests tests
+COPY workflow workflow
+COPY lib lib
+COPY api api
+# Poetry complains if the README doesn't exist
+COPY README.md README.md
+RUN poetry install --only-root
+EXPOSE 8000
+CMD ["poetry", "run", "api"]
+

@@ -1,0 +1,37 @@
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+# IntelliJ
+.idea/*
+*.ipr
+*.iml
+*.iws
+
+# Visual Studio Code
+.vscode/*
+.factorypath
+
+# OSX
+.DS_Store
+
+# Python
+__pycache__
+.mypy_cache
+.pytest_cache
+dist
+.venv
+.tmp
+.vscode
+.cache
+.sqlite
+experiments-main
+api.env
+
+# Minio
+.minio.sys
+
+# Config
+config.env
