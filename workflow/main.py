@@ -8,4 +8,7 @@ from prefect import flow
 
 @flow
 def execute_model():
+    """
+    Define model execution flow
+    """
     print("I do nothing!")

@@ -10,6 +10,9 @@ from api.server import server
 
 
 def test_logs():
+    """
+    Test if service has started
+    """
     client = TestClient(server)
 
     response = client.get("/logs")
