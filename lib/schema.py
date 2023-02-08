@@ -6,7 +6,7 @@ Schemas for the API
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, root_validator
 
 
 # TODO(five): Do not use Enum... Directly fetch semantics from TDS
@@ -38,18 +38,18 @@ class SimulationPlan(BaseModel):
     inputs: dict[str, dict[str, str]]
     operation: SimOperation = SimOperation.SOLVE
 
-    @validator("operation")
-    def verify_operation_requirements(cls, operation, values):
+    @root_validator
+    def verify_operation_requirements(cls, values):
         """
         Checks if the operation has all the requisite data
         """
         dataset_chosen = values.get("dataset_id", None) is not None
-        dataset_needed = operation == SimOperation.FIT
+        dataset_needed = values.get("operation", None) == SimOperation.FIT
         if dataset_chosen and not dataset_needed:
-            return AssertionError("Dataset given when none is needed")
+            raise AssertionError("Dataset given when none is needed")
         if not dataset_chosen and dataset_needed:
-            return AssertionError("Dataset needed for operation")
-        return operation
+            raise AssertionError("Dataset needed for operation")
+        return values
 
     # TODO(five): Add some validation for inputs
 
@@ -71,8 +71,8 @@ class Result(BaseModel):
     success: bool
     completed_at: datetime
     message: str
-    answer: float | int | bool | None
-    generated: str | None
+    answer: float | int | bool | None = None
+    generated: str | None = None
 
 
 class SimulationRun(BaseModel):
@@ -86,15 +86,15 @@ class SimulationRun(BaseModel):
     timestamp: datetime = datetime.now()
     result: Result | None = None
 
-    @validator("result")
-    def handle_completed(cls, result, values):
+    @root_validator
+    def handle_completed(cls, values):
         """
         Ensure result and completed status are mutual dependent
         """
         completed = values.get("status", None) == Status.COMPLETED
-        is_result = result is not None
+        is_result = values.get("result", None) is not None
         if completed and not is_result:
-            return AssertionError("Results not provided with completed run")
+            raise AssertionError("Results not provided with completed run")
         if not completed and is_result:
-            return AssertionError("Results provided on an incomplete run")
-        return result
+            raise AssertionError("Results provided on an incomplete run")
+        return values
