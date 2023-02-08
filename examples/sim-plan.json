@@ -1,0 +1,16 @@
+{
+  "model_id": 22,
+  "framework": "petri",
+  "inputs": {
+    "initial_values": {
+      "S": 990,
+      "I": 10,
+      "R": 0
+    },
+    "parameters":{
+      "inf": 0.5,
+      "rec": 0.25
+    }
+  },
+  "operation": "solve"
+}
