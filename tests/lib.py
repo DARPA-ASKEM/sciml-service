@@ -8,6 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ValidationError
 
+from lib.run import execute, gen_id, lookup
 from lib.schema import SimulationPlan, SimulationRun
 
 
@@ -113,3 +114,36 @@ def test_run_schema():
     assert not broken_incomplete
     assert working_complete
     assert not broken_complete
+
+
+# TODO(five): Validate full function when `gen_id` is fully implemented
+def test_id_gen():
+    """
+    Ensure ID generation is creating unique keys
+    """
+    assert gen_id() != 1
+
+
+# TODO(five): Validate full function when `execute` is fully implemented
+def test_execute():
+    """
+    Ensure sim plan generates a run properly
+    """
+    sim_plan_payload = {
+        "model_id": 1,
+        "framework": "petri",
+        "operation": "solve",
+        "inputs": {},
+    }
+
+    run = execute(SimulationPlan.parse_obj(sim_plan_payload))
+
+    assert run.id != 1
+
+
+# TODO(five): Validate full function when `lookup` is fully implemented
+def test_lookup():
+    """
+    Test if run can be retrieved
+    """
+    assert lookup(1) is None

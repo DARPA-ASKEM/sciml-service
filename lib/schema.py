@@ -35,7 +35,7 @@ class SimulationPlan(BaseModel):
     model_id: int
     framework: Framework = Framework.PETRI
     dataset_id: int | None = None
-    inputs: dict[str, dict[str, str]]
+    inputs: dict[str, dict[str, int]]
     operation: SimOperation = SimOperation.SOLVE
 
     @root_validator
@@ -52,6 +52,13 @@ class SimulationPlan(BaseModel):
         return values
 
     # TODO(five): Add some validation for inputs
+
+    class Config:
+        """
+        Additional pydantic configuration
+        """
+
+        validate_assignment = True
 
 
 class Status(str, Enum):
@@ -98,3 +105,10 @@ class SimulationRun(BaseModel):
         if not completed and is_result:
             raise AssertionError("Results provided on an incomplete run")
         return values
+
+    class Config:
+        """
+        Additional pydantic configuration
+        """
+
+        validate_assignment = True
