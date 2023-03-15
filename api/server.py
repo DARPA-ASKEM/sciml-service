@@ -5,6 +5,13 @@ Defines interface available to the HMI
 from importlib import metadata
 
 from fastapi import FastAPI
+from rq import Queue
+
+from api.redis import redis_store
+from api.schema import SimulationRun
+from api.worker import run_deterministic
+
+queue = Queue(connection=redis_store)
 
 server = FastAPI(
     title="Executor API",
@@ -14,9 +21,19 @@ server = FastAPI(
 )
 
 
-@server.get("/logs")
-def fetch_logs():
+@server.post("/submit")
+def create_run(payload: SimulationRun) -> int:
     """
-    Perform basic healthcheck
+    Kick off a job that spawns a run
     """
-    return {"message": "No logs being created yet"}
+    sim = queue.enqueue(run_deterministic, payload.task)
+    return sim.id
+
+
+@server.get("/status/{id}")
+def create_run(id: str) -> str:
+    """
+    Kick off a job that spawns a run
+    """
+    sim = queue.fetch_job(id)
+    return sim.get_status()

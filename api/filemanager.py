@@ -12,7 +12,7 @@ import boto3
 import botocore
 import pandas
 
-from lib.settings import settings
+from api.settings import settings
 
 # S3 OBJECT
 s3 = boto3.resource(

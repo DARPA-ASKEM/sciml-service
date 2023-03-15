@@ -1,0 +1,8 @@
+name = "Deterministic"
+uuid = "e66378d9-a322-4933-8764-0ce0bcab4993"
+authors = ["Five Grant <5@fivegrant.com>"]
+version = "0.1.0"
+
+[deps]
+Bijections = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"

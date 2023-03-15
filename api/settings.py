@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     STORAGE_HOST: str
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
+    REDIS_HOST: str
+    REDIS_PORT: int
+    JULIA_TASKS: str = "deterministic"
 
 
 settings = Settings()

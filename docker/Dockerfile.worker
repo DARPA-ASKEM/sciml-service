@@ -23,5 +23,4 @@ COPY api api
 COPY README.md README.md
 RUN poetry install --only-root
 EXPOSE 8000
-CMD ["poetry", "run", "executor", "api"]
-
+CMD ["poetry", "run", "executor", "worker"]

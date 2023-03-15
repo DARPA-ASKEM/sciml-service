@@ -15,3 +15,22 @@ services:
       - ../config.env
     networks:
       - sim-execution
+  rqworker:
+    container_name: rqworker
+    build: 
+      context: ../
+      dockerfile: docker/Dockerfile.worker
+    env_file:
+      - ../config.env
+    networks:
+      - sim-execution
+  redis:
+    container_name: redis
+    image: redis
+    networks:
+      - sim-execution
+    ports:
+    - mode: ingress
+      target: 6379
+      published: "6379"
+      protocol: tcp
