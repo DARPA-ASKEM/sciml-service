@@ -2,19 +2,21 @@
 CIEMSS or SciML Jobs    
 """
 
-from julia import Julia, Main
 from rq import Worker
+from rq.decorators import job
 
 from api.redis import redis_store
 from api.settings import settings
 
-jl = Julia()
-jl.using("Deterministic")
 
+@job("default", connection=redis_store)
+def run_deterministic(*args, **kwargs):
+    from julia import Julia, Main
 
-def run_deterministic(task: str):
-    # return Main.eval(f"Deterministic.{task}()")
+    jl = Julia()
+    jl.using("Deterministic")
     return jl.eval(f'"hello"')
+    return Main.eval(f"Deterministic.{task}()")
 
 
 def init_worker():

@@ -5,8 +5,6 @@ Runs the API component
 from click import echo, group, option
 from uvicorn import run as uvicorn_run
 
-from api.worker import init_worker
-
 
 @group()
 def cli() -> None:
@@ -31,4 +29,6 @@ def worker():
     """
     Execute worker with preloaded libs
     """
+    from api.worker import init_worker
+
     init_worker()
