@@ -4,12 +4,13 @@ WORKDIR /executor
 # Install requirements
 COPY Manifest.toml  /executor/
 COPY Project.toml /executor/
-RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();'
+ENV JULIA_PROJECT=executor
+RUN julia -e 'using Pkg; Pkg.instantiate();'
 
 # Install local package
 COPY src/ /executor/src/
-RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve();'
-RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.precompile();'
+RUN julia -e 'using Pkg; Pkg.resolve();'
+RUN julia -e 'using Pkg; Pkg.precompile();'
 
 EXPOSE 8080
 CMD [ "julia", "--threads 4", "-e", "using Pkg; Pkg.activate(\".\"); using Executor; Executor.run!();" ]

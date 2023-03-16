@@ -1,13 +1,12 @@
 module Executor
 
-import HTTP.Exceptions: StatusError 
 import Oxygen: serveparallel, serve, resetstate, @post, @get
+import HTTP.Exceptions: StatusError 
 import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 function submit()
     sim_run = Job(
         Task(()->"Hello World"),
-        name = "will soon get this from payload",
         priority = 5
     )
     submit!(sim_run)
