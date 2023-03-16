@@ -10,7 +10,7 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.api
     ports:
-      - "9090:9090"
+      - "8080:8080"
     env_file:
       - ../config.env
     networks:

@@ -1,17 +1,15 @@
-FROM python:3.10
-WORKDIR /api
-RUN pip install poetry
-ADD poetry.lock poetry.lock
-ADD pyproject.toml pyproject.toml
-RUN poetry config virtualenvs.create false
-RUN poetry install --no-root --without dev,workflow
-COPY tests tests
-COPY workflow workflow
-COPY lib lib
-COPY api api
-# Poetry complains if the README doesn't exist
-COPY README.md README.md
-RUN poetry install --only-root
-EXPOSE 8000
-CMD ["poetry", "run", "api"]
+FROM julia:1.8
 
+WORKDIR /executor
+# Install requirements
+COPY Manifest.toml  /executor/
+COPY Project.toml /executor/
+RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();'
+
+# Install local package
+COPY src/ /executor/src/
+RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve();'
+RUN julia -e 'using Pkg; Pkg.activate("."); Pkg.precompile();'
+
+EXPOSE 8080
+CMD [ "julia", "--threads 4", "-e", "using Pkg; Pkg.activate(\".\"); using Executor; Executor.run!();" ]
