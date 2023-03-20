@@ -23,7 +23,7 @@ Transform list of args into Symbolics variables
 """
 function symbolize_args(incoming_values, sys_vars)
     pairs = collect(incoming_values)
-    symbols, values = Symbol(first.(pairs)), last.(pairs)
+    symbols, values = Symbol.(first.(pairs)), last.(pairs)
     vars_as_symbols = getname.(sys_vars)
     symbols_to_vars = Dict(vars_as_symbols .=> sys_vars)
     Dict(
@@ -37,21 +37,16 @@ end
 """
 Simulate a scenario from a PetriNet    
 """
-function forecast(; petri::LabelledPetriNet, params, initials, tspan=(0.0, 100.0))
+function forecast(; petri::LabelledPetriNet, 
+                    params::Dict{String, Float64}, 
+                    initials::Dict{String, Float64}, 
+                    tspan=(0.0, 100.0))
     # Convert PetriNet to ODEProblem
     # TODO(five): Break out conversion into separate function maybe?
     sys = ODESystem(petri)
-    sts = states(sys)
-    ps = parameters(sys)
-    defaults = [sts .=> zeros(length(sts)); ps .=> zeros(length(ps))]
-    sys = ODESystem(petri; defaults=defaults, tspan=(0.0, 100.0))
-    prob = ODEProblem(sys)
-
-    prob = remake(prob;
-        u0=symbolize_args(initials, sts),
-        p=symbolize_args(params, ps),
-        tspan=tspan
-    )
+    u0=symbolize_args(initials, states(sys))
+    p=symbolize_args(params, parameters(sys))
+    prob = ODEProblem(sys, u0, tspan, p)
     sol = solve(prob)
     DataFrame(sol)
 end
