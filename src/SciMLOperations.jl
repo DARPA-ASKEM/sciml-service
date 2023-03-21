@@ -1,13 +1,7 @@
 """
-Deterministic Simulation Interface
-
-EXPOSED:
-- forecast   
-
-NEEDED:
-- fit
+SciML Operation definitions
 """
-module Deterministic
+module SciMLOperations
 
 import AlgebraicPetri: LabelledPetriNet
 import DataFrames: DataFrame
@@ -40,16 +34,17 @@ Simulate a scenario from a PetriNet
 function forecast(; petri::LabelledPetriNet, 
                     params::Dict{String, Float64}, 
                     initials::Dict{String, Float64}, 
-                    tspan=(0.0, 100.0))
+                    tspan=(0.0, 100.0)::Tuple{Float64, Float64}
+                 )::DataFrame
     # Convert PetriNet to ODEProblem
     # TODO(five): Break out conversion into separate function maybe?
     sys = ODESystem(petri)
     u0=symbolize_args(initials, states(sys))
     p=symbolize_args(params, parameters(sys))
-    prob = ODEProblem(sys, u0, tspan, p)
+    prob = ODEProblem(sys, u0, tspan, p ;saveat=1)
     sol = solve(prob)
     DataFrame(sol)
 end
 
-end # module Deterministic
+end # module SciMLOperations
 

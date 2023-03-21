@@ -1,16 +1,17 @@
 FROM julia:1.8
+WORKDIR /scheduler
 
-WORKDIR /executor
-# Install requirements
-COPY Manifest.toml  /executor/
-COPY Project.toml /executor/
-ENV JULIA_PROJECT=executor
+# Install dependencies
+COPY Manifest.toml  /scheduler/
+COPY Project.toml /scheduler/
+ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 
-# Install local package
-COPY src/ /executor/src/
+# Install Scheduler source
+COPY src/ /scheduler/src/
 RUN julia -e 'using Pkg; Pkg.resolve();'
 RUN julia -e 'using Pkg; Pkg.precompile();'
 
+# Launch Scheduler
 EXPOSE 8080
-CMD [ "julia", "--threads 4", "-e", "using Pkg; Pkg.activate(\".\"); using Executor; Executor.run!();" ]
+CMD [ "julia", "--threads",  "4", "-e", "using Scheduler; Scheduler.run!();" ]

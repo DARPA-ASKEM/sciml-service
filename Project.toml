@@ -1,4 +1,4 @@
-name = "Executor"
+name = "Scheduler"
 uuid = "e66378d9-a322-4933-8764-0ce0bcab4993"
 authors = ["Five Grant <5@fivegrant.com>"]
 version = "0.1.0"
