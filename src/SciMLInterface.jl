@@ -21,7 +21,8 @@ Sim runs that can be created using the `/runs/sciml/{operation}` endpoint.
 """
 sciml_operations = Dict{Symbol, Function}(
     :forecast=>forecast
-    # TODO(five): Add `fit` operation
+    # TODO(five): Add `calibrate` operation
+    # TODO(five): Add `ensemble` operation
 )
 
 """
