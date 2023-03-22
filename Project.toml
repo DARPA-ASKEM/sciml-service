@@ -1,7 +1,7 @@
 name = "Scheduler"
 uuid = "e66378d9-a322-4933-8764-0ce0bcab4993"
 authors = ["Five Grant <5@fivegrant.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 AlgebraicPetri = "4f99eebe-17bf-4e98-b6a1-2c4f205a959b"
