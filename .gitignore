@@ -1,3 +1,5 @@
+### Python ###
+
 # Eclipse
 .project
 .classpath
@@ -33,5 +35,9 @@ api.env
 # Minio
 .minio.sys
 
+### Julia ###
+test/logs/
+
+### Project ###
 # Config
 config.env

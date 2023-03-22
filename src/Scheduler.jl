@@ -30,7 +30,6 @@ Transform request body into splattable dict with correct types
 """
 function get_args(req::Request)::Dict{Symbol,Any}
     args = json(req, Dict{Symbol, Any})
-    # TODO(five): Make conversions more visible (MOVE TO TOP OF FILE?)
     function coerce!(key) # Is there a more idiomatic way of doing this
         if haskey(args, key)
             args[key] = conversions_for_valid_inputs[key](args[key])
