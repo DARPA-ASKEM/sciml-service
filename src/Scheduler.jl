@@ -83,7 +83,7 @@ end
 Specify endpoint to function mappings
 """
 function register!()
-    @post "/runs/sciml/{operation}" make_deterministic_run
+    @post "/calls/{operation}" make_deterministic_run
     @get  "/runs/{id}/{element}" retrieve_job
 end
 
