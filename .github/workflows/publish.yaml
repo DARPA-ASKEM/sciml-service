@@ -11,10 +11,6 @@ on:
     tags: ['*']
 
 jobs:
-  # Call the Lint & Format workflow before publishing
-  verify:
-    uses: ./.github/workflows/lint.yaml
-
   # Generate a more robust tag for the image
   tag-generator:
     name: Determine image tag
@@ -43,7 +39,6 @@ jobs:
   # Build and Publish all targets associated with specified group
   bake:
     needs:
-      - verify
       - tag-generator
     uses: darpa-askem/.github/.github/workflows/bake-publish.yml@main
     with:

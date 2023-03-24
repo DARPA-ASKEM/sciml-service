@@ -42,12 +42,12 @@ target "_platforms" {
   platforms = ["linux/amd64"]
 }
 
-target "simulation-service-base" {
-	context = ".."
+target "simulation-scheduler-base" {
+	context = "."
 	tags = tag("simulation-scheduler", "", "")
-	dockerfile = "Dockerfile.api"
+	dockerfile = "docker/Dockerfile.api"
 }
 
-target "simulation-service" {
-  inherits = ["_platforms", "simulation-service-base"]
+target "simulation-scheduler" {
+  inherits = ["_platforms", "simulation-scheduler-base"]
 }
