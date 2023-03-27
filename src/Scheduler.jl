@@ -79,10 +79,15 @@ function retrieve_job(_, id::Int64, element::String)
     end
 end
 
+function health_check()
+    return "simulation scheduler is running"
+end
+
 """
 Specify endpoint to function mappings
 """
 function register!()
+    @get "/" health_check
     @post "/calls/{operation}" make_deterministic_run
     @get  "/runs/{id}/{element}" retrieve_job
 end
