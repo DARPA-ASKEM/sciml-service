@@ -10,7 +10,6 @@ RUN julia -e 'using Pkg; Pkg.instantiate();'
 # Install Scheduler source
 COPY src/ /scheduler/src/
 RUN julia -e 'using Pkg; Pkg.resolve();'
-RUN julia -e 'using Pkg; Pkg.precompile();'
 
 # Launch Scheduler
 EXPOSE 8080
