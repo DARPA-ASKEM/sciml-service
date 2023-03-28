@@ -175,12 +175,12 @@ function register!()
                             type: object
                             properties:
                                 compartment:
-                                    type: string
+                                    type: number
                         params:
                             type: object
                             properties:
-                                compartment:
-                                    type: string
+                                variable:
+                                    type: number
                         tspan:
                             type: array
                             items:
@@ -190,6 +190,11 @@ function register!()
                         - initials
                         - params
                         - tspan
+                    example:
+                        petri: "{}"
+                        initals: {"compartment_a": 100.1, "compartment_b": 200} 
+                        params: {"alpha": 0.5, "beta": 0.1}
+                        tspan: [0,20]
       responses:
         '201':
             description: The ID of the job created
