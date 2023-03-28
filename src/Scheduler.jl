@@ -192,7 +192,7 @@ function register!()
                         - tspan
                     example:
                         petri: "{}"
-                        initals: {"compartment_a": 100.1, "compartment_b": 200} 
+                        initials: {"compartment_a": 100.1, "compartment_b": 200} 
                         params: {"alpha": 0.5, "beta": 0.1}
                         tspan: [0,20]
       responses:
