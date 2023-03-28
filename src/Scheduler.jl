@@ -12,7 +12,6 @@ import CSV: write
 import JSON3
 import DataFrames: DataFrame
 import HTTP: Request, Response
-import HTTP.Exceptions: StatusError
 import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, conversions_for_valid_inputs
@@ -58,7 +57,11 @@ function make_deterministic_run(req::Request, operation::String)
         String(take!(io))
     end
     if !haskey(sciml_operations, Symbol(operation))
-        return StatusError(404, "GET", "GET", "Function not found")
+        return Response(
+          404,
+          ["Content-Type" => "text/plain; charset=utf-8"], 
+          body="Operation not found"
+        )
     end
     prog = prepare_output ∘ sciml_operations[Symbol(operation)]
     args = get_args(req)
@@ -71,7 +74,11 @@ Get status of sim
 function retrieve_job(_, id::Int64, element::String)
     job = job_query(id)
     if isnothing(job)
-        return StatusError(404, "GET", "GET", "Job does not exist")
+        return Response(
+          404,
+          ["Content-Type" => "text/plain; charset=utf-8"], 
+          body="Job does not exist"
+        )
     end
     if element == "status"
         return Dict("status"=>job.state)
@@ -79,10 +86,18 @@ function retrieve_job(_, id::Int64, element::String)
         if job.state == :done
             return result(job)
         else
-            return StatusError(400, "GET", "GET", "Job has not completed")
+            return Response(
+              400,
+              ["Content-Type" => "text/plain; charset=utf-8"], 
+              body="Job has not completed"
+            )
         end
     else
-        return StatusError(404, "GET", "GET", "Element does not exist")
+        return Response(
+          404,
+          ["Content-Type" => "text/plain; charset=utf-8"], 
+          body="Element not found"
+        )
     end
 end
 
