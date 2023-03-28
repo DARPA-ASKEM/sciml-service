@@ -9,6 +9,7 @@ import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 import SwaggerMarkdown: build, @swagger, OpenAPI, validate_spec, openApiToDict, DOCS
 import YAML: load
 import CSV: write 
+import JSON3
 import DataFrames: DataFrame
 import HTTP: Request, Response
 import HTTP.Exceptions: StatusError
@@ -24,7 +25,11 @@ function start_run!(prog::Function, args::Dict{Symbol, Any})
     # TODO(five): Handle Python so a probabilistic case can work
     sim_run = Job(@task(prog(;args...)))
     submit!(sim_run)
-    Response(201, sim_run.id)
+    Response(
+      201,
+      ["Content-Type" => "application/json; charset=utf-8"], 
+      body=JSON3.write("id"=> sim_run.id)
+    )
 end
 
 """
@@ -81,10 +86,6 @@ function retrieve_job(_, id::Int64, element::String)
     end
 end
 
-function health_check()
-    return "simulation scheduler is running"
-end
-
 """
 Specify endpoint to function mappings
 """
@@ -92,17 +93,19 @@ function register!()
    @swagger """
    /:
     get:
-     description: healthcheck  
+     summary: Healthcheck
+     description: A basic healthcheck for the simulation scheduler  
      responses:
         '200':
             description: Returns notice that service has started
 
    """
-   @get "/" health_check
+   @get "/" ()->"simulation scheduler is running" 
    
    @swagger """
    /runs/{id}/status:
     get:
+      summary: Simulation status
       description: Get status of specified job
       parameters:
         - name: id
@@ -118,6 +121,7 @@ function register!()
             description: Job does not exist
    /runs/{id}/result:
     get:
+      summary: Simulation results
       description: Get the resulting CSV from a job
       parameters:
         - name: id
@@ -140,6 +144,7 @@ function register!()
    @swagger """
    /calls/forecast:
     post:
+      summary: Simulation forecast
       description: Create forecast job
       requestBody:
         description: Arguments to pass into forecast function 
