@@ -3,11 +3,11 @@ SciML Operation definitions
 """
 module SciMLOperations
 
-import AlgebraicPetri: LabelledPetriNet
+import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
 import DataFrames: DataFrame
 import DifferentialEquations: solve
 import ModelingToolkit: ODESystem, ODEProblem, remake
-import Symbolics: getname
+import Symbolics: getname, Num
 import SymbolicIndexingInterface: states, parameters
 import EasyModelAnalysis
 
@@ -43,7 +43,7 @@ end
 """
 Simulate a scenario from a PetriNet    
 """
-function forecast(; petri::LabelledPetriNet,
+function forecast(; petri::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64}
@@ -59,35 +59,40 @@ for custom loss functions, we probably just allow an enum of functions defined i
 
     datafit is exported in EMA 
 "
-function _datafit(; petri::LabelledPetriNet,
+function _datafit(; petri::AbstractPetriNet,
+    params::Dict{String,Float64},
+    initials::Dict{String,Float64},
+    t::Vector{Float64},
+    data::Dict{String,Vector{Float64}}
+)
+    prob = _to_prob(petri, params, initials, extrema(t))
+    sys = prob.f.sys
+    p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
+    @show p
+    ks, vs = unzip(collect(p))
+    p = Num.(ks) .=> vs
+    data = SciMLOperations.symbolize_args(data, states(sys))
+    fitp = EasyModelAnalysis.datafit(prob, p, t, data)
+    @info fitp
+    # DataFrame(fitp)
+    fitp
+end
+
+"long running functions like global_datafit and sensitivity wrappers will need to be refactored to share callback info incrementally"
+function _global_datafit(; petri::LabelledPetriNet,
+    parameter_bounds::Dict{String,Tuple{Float64,Float64}},
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     t::Vector{Number},
     data::Dict{String,Vector{Float64}}
 )::DataFrame
-    prob = to_prob(petri, params, initials, extrema(t))
-    sys = prob.f.sys
-    p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-    fitp = datafit(prob, collect(p), t, data)
-    DataFrame(fitp)
-end
-
-_val_bound(b) = @assert issorted(b)
-
-function _global_datafit(; petri::LabelledPetriNet,
-    parameter_bounds::Dict{String,Tuple{Float64, Float64}},
-    initials::Dict{String,Float64},
-    t::Vector{Number},
-    data::Dict{String,Vector{Float64}}
-)::DataFrame
     ks, vs = unzip(parameter_bounds)
-    _val_bound.(vs)
+    @assert all(issorted.(vs))
     prob = to_prob(petri, params, initials, extrema(t))
     sys = prob.f.sys
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
     fitp = global_datafit(prob, collect(p), t, data)
     DataFrame(fitp)
-
 end
 
 end # module SciMLOperations
