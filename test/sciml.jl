@@ -1,9 +1,5 @@
-using Scheduler
-using AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis
-using Catlab
-using Catlab.CategoricalAlgebra
-using JSON3, Unpack
-
+using Scheduler, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, Scheduler.SciMLInterface.SciMLOperations
+using CSV, DataFrames, JSONTables
 _datadir() = joinpath(dirname(Base.active_project()), "examples")
 _data(s) = joinpath(_datadir(), s)
 
@@ -14,6 +10,7 @@ mkpath(_logdir())
 bn = "BIOMD0000000955_miranet.json"
 fn = _data(bn)
 T = PropertyLabelledReactionNet{Number,Number,Dict}
+TAny = PropertyLabelledReactionNet{Any,Any,Any}
 
 # we should be able to assume that all concentration and rate are set (despite this not being the case for the other 2 Miras from ben)
 petri = read_json_acset(T, fn)
@@ -40,8 +37,12 @@ df2 = Scheduler.SciMLInterface.forecast(; nt...)
 t = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
 fit_args = (; petri, params, initials, t, data)
+fit_body = Dict(pairs(fit_args))
+fit_j = JSON3.write(fit_body)
+calibrate_fn = _log("calibrate.json")
+write(calibrate_fn, fit_j)
+
 fitp = Scheduler.SciMLInterface._datafit(; fit_args...)
-using Scheduler.SciMLInterface.SciMLOperations
 prob = SciMLOperations._to_prob(petri, params, initials, extrema(t))
 
 sys = prob.f.sys
