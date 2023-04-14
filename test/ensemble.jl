@@ -115,4 +115,5 @@ function ensemble_calibrate(; models, data)
         nt = (; petri=parse_json_acset(TAny, mpn), params=paramsd, initials=initialsd, t=Float64.(collect(t)), data=Dict(data_))
         push!(fits, Scheduler.SciMLInterface._datafit(; nt...))
     end
+    fits
 end

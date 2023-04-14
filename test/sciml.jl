@@ -1,5 +1,6 @@
 using Scheduler, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, Scheduler.SciMLInterface.SciMLOperations
 using CSV, DataFrames, JSONTables
+using ForwardDiff
 
 _datadir() = joinpath(@__DIR__, "../examples")
 _data(s) = joinpath(_datadir(), s)
@@ -45,12 +46,12 @@ write(calibrate_fn, fit_j)
 
 fitp = Scheduler.SciMLInterface._datafit(; fit_args...)
 prob = SciMLOperations._to_prob(petri, params, initials, extrema(t))
-
 sys = prob.f.sys
-p = SciMLOperations.symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-@show p
-# hack since datafit has a dumb signature restriction with Num
-ks, vs = unzip(collect(p))
-p = Num.(ks) .=> vs
-data2 = SciMLOperations.symbolize_args(data, states(sys))
-fitp = EasyModelAnalysis.datafit(prob, p, t, data2)
+
+# example of dloss/dp
+pkeys = parameters(sys)
+pvals = [params[string(x)] for x in pkeys]
+data = [states(sys)[1] => df[:, 2]]
+
+l = EasyModelAnalysis.l2loss(pvals, (prob, pkeys, t, data))
+ForwardDiff.gradient(p -> EasyModelAnalysis.l2loss(p, (prob, pkeys, t, data)), last.(fitp))
