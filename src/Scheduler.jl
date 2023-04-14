@@ -12,7 +12,7 @@ import CSV: write
 import JSON3
 import DataFrames: DataFrame
 import HTTP: Request, Response
-# import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
+import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLInterface.jl")
 import .SciMLInterface: sciml_operations, conversions_for_valid_inputs
@@ -215,21 +215,20 @@ Load API endpoints and start listening for sim run jobs
 function run!()
     resetstate()
     register!()
-    # if Threads.nthreads() > 1
-    #     scheduler_start()
-    #     set_scheduler(
-    #         max_cpu=0.5,
-    #         max_mem=0.5,
-    #         update_second=0.05,
-    #         max_job=5000,
-    #     )
-    # serveparallel(middleware=[CorsMiddleware], host="127.0.0.1")
-    serve()
-    # else
-    #     println("WARNING: The server is not parallelized. You may need to start the REPL like `julia --threads 5`")
-    #     scheduler_start()
-    #     serve(middleware=[CorsMiddleware], host="127.0.0.1")
-    # end
+    if Threads.nthreads() > 1
+        scheduler_start()
+        set_scheduler(
+            max_cpu=0.5,
+            max_mem=0.5,
+            update_second=0.05,
+            max_job=5000,
+        )
+        serveparallel(host="127.0.0.1")
+    else
+        println("WARNING: The server is not parallelized. You may need to start the REPL like `julia --threads 5`")
+        scheduler_start()
+        serve(host="127.0.0.1")
+    end
 end
 
 end # module Scheduler
