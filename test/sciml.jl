@@ -1,6 +1,7 @@
 using Scheduler, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, Scheduler.SciMLInterface.SciMLOperations
 using CSV, DataFrames, JSONTables
-_datadir() = joinpath(dirname(Base.active_project()), "examples")
+
+_datadir() = joinpath(@__DIR__, "../examples")
 _data(s) = joinpath(_datadir(), s)
 
 _logdir() = joinpath(@__DIR__, "logs")
