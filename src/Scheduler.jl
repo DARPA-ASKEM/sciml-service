@@ -4,6 +4,7 @@ Interface for relevant ASKEM simulation libraries
 module Scheduler
 
 import AlgebraicPetri: LabelledPetriNet
+import Symbolics
 import Catlab.CategoricalAlgebra: parse_json_acset
 import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 import SwaggerMarkdown: build, @swagger, OpenAPI, validate_spec, openApiToDict, DOCS
@@ -50,12 +51,15 @@ end
 Find sim run and request a job with the given args    
 """
 function make_deterministic_run(req::Request, operation::String)
-    # TODO(five): Support more return types other than CSV i.e. write more methods
+    # TODO(five): Handle output on a less case by case basis
     function prepare_output(dataframe::DataFrame)
         io = IOBuffer()
         # TODO(five): Write to remote server
         write(io, dataframe)
         String(take!(io))
+    end
+    function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}})
+        Dict(params)
     end
     if !haskey(sciml_operations, Symbol(operation))
         return Response(
@@ -182,7 +186,7 @@ function register!()
                              properties:
                                  variable:
                                      type: number
-                         tspan:
+                         t:
                              type: array
                              items:
                                  type: number
@@ -196,6 +200,55 @@ function register!()
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
                          tspan: [0,20]
+       responses:
+         '201':
+             description: The ID of the job created
+    /calls/calibrate:
+     post:
+       summary: Simulation calibrate
+       description: Create calibrate job
+       requestBody:
+         description: Arguments to pass into forecast function. `t` must contain every timestep used in `data`. 
+         required: true
+         content:
+             application/json:
+                 schema: 
+                     type: object
+                     properties:
+                         petri:
+                             type: string
+                         initials:
+                             type: object
+                             properties:
+                                 compartment:
+                                     type: number
+                         params:
+                             type: object
+                             properties:
+                                 variable:
+                                     type: number
+                         t:
+                             type: array
+                             items:
+                                 type: number
+                         data:
+                             type: object
+                             properties:
+                                 column:
+                                     type: array
+                                     items:
+                                        type: number
+                     required:
+                         - petri
+                         - initials
+                         - params
+                         - tspan
+                     example:
+                         petri: "{}"
+                         initials: {"compartment_a": 100.1, "compartment_b": 200} 
+                         params: {"alpha": 0.5, "beta": 0.1}
+                         t: []
+                         data: {}
        responses:
          '201':
              description: The ID of the job created
@@ -223,11 +276,11 @@ function run!()
             update_second=0.05,
             max_job=5000,
         )
-        serveparallel(host="127.0.0.1")
+        serveparallel(host="0.0.0.0")
     else
         println("WARNING: The server is not parallelized. You may need to start the REPL like `julia --threads 5`")
         scheduler_start()
-        serve(host="127.0.0.1")
+        serve(host="0.0.0.0")
     end
 end
 
