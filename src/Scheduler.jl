@@ -208,7 +208,7 @@ function register!()
        summary: Simulation calibrate
        description: Create calibrate job
        requestBody:
-         description: Arguments to pass into forecast function 
+         description: Arguments to pass into forecast function. `t` must contain every timestep used in `data`. 
          required: true
          content:
              application/json:
@@ -227,7 +227,7 @@ function register!()
                              properties:
                                  variable:
                                      type: number
-                         tspan:
+                         t:
                              type: array
                              items:
                                  type: number
@@ -247,7 +247,7 @@ function register!()
                          petri: "{}"
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
-                         tspan: [0,20]
+                         t: []
                          data: {}
        responses:
          '201':
