@@ -59,7 +59,7 @@ for custom loss functions, we probably just allow an enum of functions defined i
 
     datafit is exported in EMA 
 "
-function _datafit(; petri::AbstractPetriNet,
+function calibrate(; petri::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     t::Vector{Float64},

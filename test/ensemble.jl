@@ -113,7 +113,7 @@ function ensemble_calibrate(; models, data)
         initialsd = Dict(string.(first.(initials_)) .=> last.(initials_))
         t = data.t
         nt = (; petri=parse_json_acset(TAny, mpn), params=paramsd, initials=initialsd, t=Float64.(collect(t)), data=Dict(data_))
-        push!(fits, Scheduler.SciMLInterface._datafit(; nt...))
+        push!(fits, Scheduler.SciMLInterface.calibrate(; nt...))
     end
     fits
 end

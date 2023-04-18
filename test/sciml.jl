@@ -44,7 +44,7 @@ fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
-fitp = Scheduler.SciMLInterface._datafit(; fit_args...)
+fitp = Scheduler.SciMLInterface.calibrate(; fit_args...)
 prob = SciMLOperations._to_prob(petri, params, initials, extrema(t))
 sys = prob.f.sys
 
