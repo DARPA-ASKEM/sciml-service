@@ -59,7 +59,8 @@ function make_deterministic_run(req::Request, operation::String)
         String(take!(io))
     end
     function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}})
-        Dict(params)
+        nan_to_nothing(value) = isnan(value) ? nothing : value
+        Dict(key => nan_to_nothing(value) for (key, value) in params)
     end
     if !haskey(sciml_operations, Symbol(operation))
         return Response(
