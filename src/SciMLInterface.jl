@@ -13,6 +13,8 @@ import HTTP.Exceptions: StatusError
 # import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLOperations.jl")
+include("./Status.jl")
+import .Status: get_publish_json_hook
 import .SciMLOperations: forecast, calibrate, _global_datafit
 
 export sciml_operations, conversions_for_valid_inputs
@@ -22,7 +24,7 @@ Sim runs that can be created using the `/runs/sciml/{operation}` endpoint.
 """
 sciml_operations = Dict{Symbol,Function}(
     :forecast => forecast,
-    :calibrate => calibrate
+    :calibrate => (args)->calibrate(;args..., callback=get_publish_json_hook())
     # :global_calibrate => _global_datafit
     # TODO(five): Add `ensemble` operation
 )
