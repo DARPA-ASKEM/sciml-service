@@ -4,6 +4,7 @@ authors = ["Five Grant <5@fivegrant.com>"]
 version = "0.2.0"
 
 [deps]
+AMQPClient = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
 AlgebraicPetri = "4f99eebe-17bf-4e98-b6a1-2c4f205a959b"
 Bijections = "e2ed5e7c-b2de-5872-ae92-c73ca462fb04"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
