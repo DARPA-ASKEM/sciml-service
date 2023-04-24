@@ -64,7 +64,7 @@ function calibrate(; petri::AbstractPetriNet,
     initials::Dict{String,Float64},
     t::Vector{Float64},
     data::Dict{String,Vector{Float64}},
-    callback #TODO(five):: Use callback
+    callback = (_)->() #TODO(five):: Use callback
 )
     prob = _to_prob(petri, params, initials, extrema(t))
     sys = prob.f.sys
