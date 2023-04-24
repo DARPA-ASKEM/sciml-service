@@ -3,6 +3,11 @@ SciML Operation definitions
 """
 module SciMLOperations
 
+import Logging: global_logger
+include("./Queuing.jl"); import .Queuing: MQLogger, shouldlog, min_enabled_level, handle_message, get_publish_json_hook
+global_logger(MQLogger(get_publish_json_hook()))
+
+
 import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
 import DataFrames: DataFrame
 import DifferentialEquations: solve
@@ -11,7 +16,7 @@ import Symbolics: getname, Num
 import SymbolicIndexingInterface: states, parameters
 import EasyModelAnalysis
 
-export forecast
+export forecast, calibrate
 
 _to_prob(petri, params, initials, tspan) = begin
     sys = ODESystem(petri)
@@ -48,9 +53,7 @@ function forecast(; petri::AbstractPetriNet,
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64}
 )::DataFrame
-    # Convert PetriNet to ODEProblem
-    # TODO(five): Break out conversion into separate function maybe?
-    sol = solve(_to_prob(petri, params, initials, tspan))
+    sol = solve(_to_prob(petri, params, initials, tspan); progress = true, progress_steps = 1)
     DataFrame(sol)
 end
 
@@ -62,18 +65,17 @@ for custom loss functions, we probably just allow an enum of functions defined i
 function calibrate(; petri::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
-    t::Vector{Float64},
+    timesteps::Vector{Float64},
     data::Dict{String,Vector{Float64}},
-    callback = (_)->() #TODO(five):: Use callback
 )
-    prob = _to_prob(petri, params, initials, extrema(t))
+    prob = _to_prob(petri, params, initials, extrema(timesteps))
     sys = prob.f.sys
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
     @show p
     ks, vs = unzip(collect(p))
     p = Num.(ks) .=> vs
     data = SciMLOperations.symbolize_args(data, states(sys))
-    fitp = EasyModelAnalysis.datafit(prob, p, t, data)
+    fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
     @info fitp
     # DataFrame(fitp)
     fitp

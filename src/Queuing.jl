@@ -1,5 +1,6 @@
-module Status
+module Queuing
 
+import Logging: AbstractLogger, LogLevel
 import AMQPClient: amqps_configure, basic_publish, channel, connection, Message, AMQPS_DEFAULT_PORT, UNUSED_CHANNEL
 import JSON3 as JSON
 
@@ -23,4 +24,15 @@ function get_publish_json_hook()
     end
 end
 
-end # module Status
+struct MQLogger <: AbstractLogger
+    publish_hook::Function
+end
+
+shouldlog(::MQLogger, args...; kwargs...) = true
+min_enabled_level(logger::MQLogger) = LogLevel(0)
+
+function handle_message(logger::MQLogger, level, message, args...; kwargs...)
+    logger.publish_hook(Dict("thing"=>message))
+end
+
+end # module Queuing

@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "fba97dbe7058f8b18fbc101a597cc8648a28b612"
+project_hash = "196754b48acc19c4658624e737fd2884fea92eaf"
 
 [[deps.AMQPClient]]
 deps = ["Logging", "MbedTLS", "Sockets"]
