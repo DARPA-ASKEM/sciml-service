@@ -3,6 +3,9 @@ Interface for relevant ASKEM simulation libraries
 """
 module Scheduler
 
+import Logging: global_logger, with_logger
+include("./Queuing.jl"); import .Queuing: MQLogger
+
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
 import Catlab.CategoricalAlgebra: parse_json_acset
@@ -71,7 +74,10 @@ function make_deterministic_run(req::Request, operation::String)
     end
     prog = prepare_output ∘ sciml_operations[Symbol(operation)]
     args = get_args(req)
-    start_run!(prog, args)
+    watch(f) = (args...;kwargs...) -> with_logger(MQLogger()) do 
+        f(args...;kwargs...)
+    end 
+    start_run!(watch(prog), args)
 end
 
 """
@@ -228,7 +234,7 @@ function register!()
                              properties:
                                  variable:
                                      type: number
-                         t:
+                         timesteps:
                              type: array
                              items:
                                  type: number
@@ -248,7 +254,7 @@ function register!()
                          petri: "{}"
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
-                         t: []
+                         timesteps: []
                          data: {}
        responses:
          '201':
