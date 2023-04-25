@@ -3,11 +3,6 @@ SciML Operation definitions
 """
 module SciMLOperations
 
-import Logging: global_logger
-include("./Queuing.jl"); import .Queuing: MQLogger, shouldlog, min_enabled_level, handle_message, get_publish_json_hook
-global_logger(MQLogger(get_publish_json_hook()))
-
-
 import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
 import DataFrames: DataFrame
 import DifferentialEquations: solve
