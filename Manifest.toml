@@ -2,7 +2,13 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "b0a092f6a23843398d25f007f63d0177d4df15ce"
+project_hash = "196754b48acc19c4658624e737fd2884fea92eaf"
+
+[[deps.AMQPClient]]
+deps = ["Logging", "MbedTLS", "Sockets"]
+git-tree-sha1 = "508457ed7a2afb432590247dc363fffc51f242fc"
+uuid = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
+version = "0.5.1"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -423,7 +429,6 @@ version = "5.42.0"
 
 [[deps.DelimitedFiles]]
 deps = ["Mmap"]
-git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[deps.DensityInterface]]

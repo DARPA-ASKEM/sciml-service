@@ -3,6 +3,8 @@ Interface for relevant ASKEM simulation libraries
 """
 module Scheduler
 
+__precompile__(false)
+
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
 import Catlab.CategoricalAlgebra: parse_json_acset
@@ -16,7 +18,7 @@ import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLInterface.jl")
-import .SciMLInterface: sciml_operations, conversions_for_valid_inputs
+import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
 
 """
 Schedule a sim run
@@ -69,7 +71,7 @@ function make_deterministic_run(req::Request, operation::String)
             body="Operation not found"
         )
     end
-    prog = prepare_output ∘ sciml_operations[Symbol(operation)]
+    prog = prepare_output ∘ use_operation(Symbol(operation))
     args = get_args(req)
     start_run!(prog, args)
 end
@@ -228,7 +230,7 @@ function register!()
                              properties:
                                  variable:
                                      type: number
-                         t:
+                         timesteps:
                              type: array
                              items:
                                  type: number
@@ -248,7 +250,7 @@ function register!()
                          petri: "{}"
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
-                         t: []
+                         timesteps: []
                          data: {}
        responses:
          '201':

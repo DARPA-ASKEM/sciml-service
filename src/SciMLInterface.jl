@@ -3,6 +3,8 @@ Shared source of truth for operations and scheduler
 """
 module SciMLInterface
 
+
+import Logging: with_logger
 import AlgebraicPetri: PropertyLabelledReactionNet, LabelledPetriNet, AbstractPetriNet
 import Catlab.CategoricalAlgebra: parse_json_acset
 import Oxygen: serveparallel, serve, resetstate, json, @post, @get
@@ -14,6 +16,7 @@ import HTTP.Exceptions: StatusError
 
 include("./SciMLOperations.jl")
 import .SciMLOperations: forecast, calibrate, _global_datafit
+include("./Queuing.jl"); import .Queuing: MQLogger
 
 export sciml_operations, conversions_for_valid_inputs
 
@@ -22,10 +25,23 @@ Sim runs that can be created using the `/runs/sciml/{operation}` endpoint.
 """
 sciml_operations = Dict{Symbol,Function}(
     :forecast => forecast,
-    :calibrate => calibrate
+    :calibrate => calibrate,
     # :global_calibrate => _global_datafit
     # TODO(five): Add `ensemble` operation
 )
+
+"""
+Return an operation wrapped with necessary handlers    
+"""
+function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here?
+    operation = sciml_operations[name]
+    (args...; kwargs...) -> begin
+        with_logger(MQLogger()) do
+            operation(args...; kwargs...)
+        end
+    end
+end
+
 
 """
 Inputs converted from payload to arguments expanded in operations.    
@@ -36,7 +52,7 @@ conversions_for_valid_inputs = Dict{Symbol,Function}(
     :params => (val) -> Dict{String,Float64}(val),
     :initials => (val) -> Dict{String,Float64}(val),
     :data => (val) -> Dict{String, Vector{Float64}}(val),
-    :t => (val) -> Vector{Float64}(val)
+    :timesteps => (val) -> Vector{Float64}(val)
 )
 
 
