@@ -36,16 +36,16 @@ params["t1"] = 0.1
 nt = (; petri, params, initials, tspan)
 df2 = Scheduler.SciMLInterface.forecast(; nt...)
 
-t = df.timestamp
+timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
-fit_args = (; petri, params, initials, t, data)
+fit_args = (; petri, params, initials, timesteps, data)
 fit_body = Dict(pairs(fit_args))
 fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
 fitp = Scheduler.SciMLInterface.calibrate(; fit_args...)
-prob = SciMLOperations._to_prob(petri, params, initials, extrema(t))
+prob = SciMLOperations._to_prob(petri, params, initials, extrema(timesteps))
 sys = prob.f.sys
 
 # example of dloss/dp
@@ -53,5 +53,5 @@ pkeys = parameters(sys)
 pvals = [params[string(x)] for x in pkeys]
 data = [states(sys)[1] => df[:, 2]]
 
-l = EasyModelAnalysis.l2loss(pvals, (prob, pkeys, t, data))
-ForwardDiff.gradient(p -> EasyModelAnalysis.l2loss(p, (prob, pkeys, t, data)), last.(fitp))
+l = EasyModelAnalysis.l2loss(pvals, (prob, pkeys, timesteps, data))
+ForwardDiff.gradient(p -> EasyModelAnalysis.l2loss(p, (prob, pkeys, timesteps, data)), last.(fitp))

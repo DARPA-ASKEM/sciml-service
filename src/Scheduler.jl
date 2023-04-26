@@ -3,8 +3,7 @@ Interface for relevant ASKEM simulation libraries
 """
 module Scheduler
 
-import Logging: global_logger, with_logger
-include("./Queuing.jl"); import .Queuing: MQLogger
+__precompile__(false)
 
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
@@ -19,7 +18,7 @@ import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLInterface.jl")
-import .SciMLInterface: sciml_operations, conversions_for_valid_inputs
+import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
 
 """
 Schedule a sim run
@@ -72,12 +71,9 @@ function make_deterministic_run(req::Request, operation::String)
             body="Operation not found"
         )
     end
-    prog = prepare_output ∘ sciml_operations[Symbol(operation)]
+    prog = prepare_output ∘ use_operation(Symbol(operation))
     args = get_args(req)
-    watch(f) = (args...;kwargs...) -> with_logger(MQLogger()) do 
-        f(args...;kwargs...)
-    end 
-    start_run!(watch(prog), args)
+    start_run!(prog, args)
 end
 
 """
