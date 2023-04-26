@@ -18,13 +18,12 @@ function get_channel()
     channel(conn, UNUSED_CHANNEL, true)
 end
 
-default_chan = get_channel()
-
 function publish_to_rabbitmq(content)
+    chan = get_channel() # TODO(five): Don't recreate for each call
     json = convert(Vector{UInt8}, codeunits(JSON.write(content)))
     message = Message(json, content_type="application/json")
     # TODO(five): Regen channel
-    basic_publish(default_chan, message; exchange="", routing_key=settings["RABBITMQ_ROUTE"])
+    basic_publish(chan, message; exchange="", routing_key=settings["RABBITMQ_ROUTE"])
 end
 
 struct MQLogger <: AbstractLogger
