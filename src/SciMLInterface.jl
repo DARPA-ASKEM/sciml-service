@@ -17,6 +17,7 @@ import HTTP.Exceptions: StatusError
 include("./SciMLOperations.jl")
 import .SciMLOperations: forecast, calibrate, _global_datafit
 include("./Queuing.jl"); import .Queuing: MQLogger
+include("./Settings.jl"); import .Settings: settings
 
 export sciml_operations, conversions_for_valid_inputs
 
@@ -35,11 +36,12 @@ Return an operation wrapped with necessary handlers
 """
 function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here?
     operation = sciml_operations[name]
-    (args...; kwargs...) -> begin
+    function logged(args...; kwargs...)
         with_logger(MQLogger()) do
             operation(args...; kwargs...)
         end
     end
+    settings["SHOULD_LOG"] == "yes" ? logged : operation
 end
 
 

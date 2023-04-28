@@ -37,6 +37,7 @@ macro setting(name::Symbol)
     :(@setting($name, String, nothing))
 end
 
+@setting SHOULD_LOG "no" # TODO(five): Make boolean
 @setting RABBITMQ_LOGIN "guest"
 @setting RABBITMQ_PASSWORD "guest"
 @setting RABBITMQ_ROUTE "terarium"
