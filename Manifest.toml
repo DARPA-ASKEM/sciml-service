@@ -2,13 +2,21 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "196754b48acc19c4658624e737fd2884fea92eaf"
+project_hash = "737eabe46402217dff8950e730079d66de896e3f"
 
 [[deps.AMQPClient]]
 deps = ["Logging", "MbedTLS", "Sockets"]
 git-tree-sha1 = "508457ed7a2afb432590247dc363fffc51f242fc"
 uuid = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
 version = "0.5.1"
+
+[[deps.APIClient]]
+deps = ["Dates", "OpenAPI", "TimeZones"]
+git-tree-sha1 = "d195e1589d2c52467b57b91ab25b9fe00dcbc885"
+repo-rev = "9063b31a1a5404dce923b433e8e7417b61eceeb9:julia"
+repo-url = "https://github.com/DARPA-ASKEM/data-service"
+uuid = "d84ad9ee-b5d5-4c5c-84c0-a6d1b137609a"
+version = "0.1.0"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1356,6 +1364,12 @@ version = "1.1.0"
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
+[[deps.Mocking]]
+deps = ["Compat", "ExprTools"]
+git-tree-sha1 = "782e258e80d68a73d8c916e55f8ced1de00c2cea"
+uuid = "78c3b35d-d492-501b-9361-3d52fe80e533"
+version = "0.7.6"
+
 [[deps.ModelingToolkit]]
 deps = ["AbstractTrees", "ArrayInterface", "Combinatorics", "Compat", "ConstructionBase", "DataStructures", "DiffEqBase", "DiffEqCallbacks", "DiffRules", "Distributed", "Distributions", "DocStringExtensions", "DomainSets", "ForwardDiff", "FunctionWrappersWrappers", "Graphs", "IfElse", "InteractiveUtils", "JuliaFormatter", "JumpProcesses", "LabelledArrays", "Latexify", "Libdl", "LinearAlgebra", "MacroTools", "NaNMath", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLBase", "Serialization", "Setfield", "SimpleNonlinearSolve", "SparseArrays", "SpecialFunctions", "StaticArrays", "SymbolicIndexingInterface", "SymbolicUtils", "Symbolics", "UnPack", "Unitful"]
 git-tree-sha1 = "de2daac4b0ca05c2cedfb4535dcee453e3f5fabd"
@@ -1473,6 +1487,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "887579a3eb005446d514ab7aeac5d1d027658b8f"
 uuid = "e7412a2a-1a6e-54c0-be00-318e2571c051"
 version = "1.3.5+1"
+
+[[deps.OpenAPI]]
+deps = ["Base64", "Dates", "Downloads", "HTTP", "JSON", "LibCURL", "MbedTLS", "TimeZones", "URIs"]
+git-tree-sha1 = "d091c5b9feb951f0a674a9792cd5f948507eecaa"
+uuid = "d5e62ea6-ddf3-4d43-8e4c-ad5e6c8bfd7d"
+version = "0.1.9"
 
 [[deps.OpenBLAS32_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]
@@ -2202,6 +2222,12 @@ deps = ["ManualMemory"]
 git-tree-sha1 = "c97f60dd4f2331e1a495527f80d242501d2f9865"
 uuid = "8290d209-cae3-49c0-8002-c8c24d57dab5"
 version = "0.5.1"
+
+[[deps.TimeZones]]
+deps = ["Dates", "Downloads", "InlineStrings", "LazyArtifacts", "Mocking", "Printf", "RecipesBase", "Scratch", "Unicode"]
+git-tree-sha1 = "a92ec4466fc6e3dd704e2668b5e7f24add36d242"
+uuid = "f269a46b-ccf7-5d73-abea-4c690281aa53"
+version = "1.9.1"
 
 [[deps.TimerOutputs]]
 deps = ["ExprTools", "Printf"]
