@@ -1,7 +1,7 @@
 module AssetManager
 
 import DataFrames: DataFrame
-import CSV: read, write
+import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import APIClient: upload_file_datasets_id_file_post, 
                   #get_csv_from_dataset_datasets_id_file_get,
@@ -15,16 +15,19 @@ api = DatasetsApi(Client(settings["TDS_URL"]))
 
 function get_dataset(dataset_id::Int64)
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
-    io = IOStream
-    download(url, io)
-    read(io, DataFrame)
+    # TODO(five): Use IOBuffer instead of tempfile
+    #io = IOBuffer()
+    #Downloads.download(url, io)
+    #CSV.File(io, header=1) |> DataFrame
+    handle = Downloads.download(url)
+    CSV.read(handle, DataFrame)
 end
 
 function upload(output::DataFrame)
-    # TODO(five): Stream so there isn't duplication in buffer
+    # TODO(five): Stream so there isn't duplication
     io = IOBuffer()
-    write(io, output)
-    csv = String(take!(io))
+    CSV.write(io, output)
+    #csv = String(take!(io))
 
                   
     payload = Dataset(;
@@ -33,8 +36,15 @@ function upload(output::DataFrame)
         url = "",
         simulation_run = true
     )
-    # TODO(five): Handle 4xx from TDS
     response, _ = init_dataset(api, payload)
+
+    # TODO(five): Handle 4xx from TDS
+    url = "$(settings["TDS_URL"])/datasets/$(response.id)/file"
+    headers = ["Authorization" => "Bearer *****"]
+    data = ["channel" => "*****", "file" => io]
+    body = HTTP.Form(io)
+    HTTP.post(url, headers, body) 
+
     response.id
 end
 
