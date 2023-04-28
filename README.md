@@ -1,14 +1,9 @@
-# Scheduler
-Scheduler provides an interface and job scheduler for [EasyModelAnalysis.jl](https://github.com/SciML/EasyModelAnalysis.jl). 
+# Simulation Service
+Simulation Service provides an interface and job runner for [ASKEM models](https://github.com/DARPA-ASKEM/Model-Representations). 
 
 See example payload at [./examples/request.json](./examples/request.json)
 
 ## Usage
-
-In the Julia REPL:
-```
-using Scheduler; Scheduler.run!()
-````
 
 With docker compose: 
 ```
