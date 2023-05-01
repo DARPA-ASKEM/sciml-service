@@ -2,21 +2,13 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "737eabe46402217dff8950e730079d66de896e3f"
+project_hash = "48cd1fa470af27cd2648f52df2fd4da1e8e4e47a"
 
 [[deps.AMQPClient]]
 deps = ["Logging", "MbedTLS", "Sockets"]
 git-tree-sha1 = "508457ed7a2afb432590247dc363fffc51f242fc"
 uuid = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
 version = "0.5.1"
-
-[[deps.APIClient]]
-deps = ["Dates", "OpenAPI", "TimeZones"]
-git-tree-sha1 = "d195e1589d2c52467b57b91ab25b9fe00dcbc885"
-repo-rev = "9063b31a1a5404dce923b433e8e7417b61eceeb9:julia"
-repo-url = "https://github.com/DARPA-ASKEM/data-service"
-uuid = "d84ad9ee-b5d5-4c5c-84c0-a6d1b137609a"
-version = "0.1.0"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
