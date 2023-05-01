@@ -15,19 +15,17 @@ api = DatasetsApi(Client(settings["TDS_URL"]))
 
 function get_dataset(dataset_id::Int64)
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
-    # TODO(five): Use IOBuffer instead of tempfile
-    #io = IOBuffer()
-    #Downloads.download(url, io)
-    #CSV.File(io, header=1) |> DataFrame
-    handle = Downloads.download(url)
-    CSV.read(handle, DataFrame)
+    io = IOBuffer()
+    Downloads.download(url, io)
+    seekstart(io)
+    CSV.read(io, DataFrame)
 end
 
 function upload(output::DataFrame)
     # TODO(five): Stream so there isn't duplication
     io = IOBuffer()
     CSV.write(io, output)
-    #csv = String(take!(io))
+    seekstart(io)
 
                   
     payload = Dataset(;
@@ -40,11 +38,8 @@ function upload(output::DataFrame)
 
     # TODO(five): Handle 4xx from TDS
     url = "$(settings["TDS_URL"])/datasets/$(response.id)/file"
-    headers = ["Authorization" => "Bearer *****"]
-    data = ["channel" => "*****", "file" => io]
-    body = HTTP.Form(io)
-    HTTP.post(url, headers, body) 
-
+    HTTP.post(url, [], HTTP.Form(Dict("filename" => "generated.csv", "file" => HTTP.Multipart("file.csv", io, "text/plain")))) 
+    
     response.id
 end
 
