@@ -1,7 +1,7 @@
 """
 Interface for relevant ASKEM simulation libraries    
 """
-module Scheduler
+module SimulationService 
 
 __precompile__(false)
 
@@ -275,4 +275,4 @@ function run!()
     end
 end
 
-end # module Scheduler
+end # module SimulationService

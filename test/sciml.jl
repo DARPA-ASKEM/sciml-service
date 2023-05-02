@@ -1,4 +1,4 @@
-using Scheduler, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, Scheduler.SciMLInterface.SciMLOperations
+using SimulationService, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, SimulationService.SciMLInterface.SciMLOperations
 using CSV, DataFrames, JSONTables
 using ForwardDiff
 
@@ -23,28 +23,28 @@ params = Dict(ps)
 initials = Dict(u0)
 tspan = (0.0, 100.0)
 
-nt = (; petri, params, initials, tspan)
+nt = (; model=petri, params, initials, tspan)
 body = Dict(pairs(nt))
 j = JSON3.write(body)
 forecast_fn = _log("forecast.json")
 write(forecast_fn, j)
 
-df = Scheduler.SciMLInterface.forecast(; nt...)
+df = SimulationService.SciMLInterface.forecast(; nt...)
 @test df isa DataFrame
 
 params["t1"] = 0.1
-nt = (; petri, params, initials, tspan)
-df2 = Scheduler.SciMLInterface.forecast(; nt...)
+nt = (; model = petri, params, initials, tspan)
+df2 = SimulationService.SciMLInterface.forecast(; nt...)
 
 timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
-fit_args = (; petri, params, initials, timesteps, data)
+fit_args = (; model=petri, params, initials, dataset=df, timesteps_column="timestamp", feature_mappings=Dict("Susceptible(t)"=>"Susceptible"))
 fit_body = Dict(pairs(fit_args))
 fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
-fitp = Scheduler.SciMLInterface.calibrate(; fit_args...)
+fitp = SimulationService.SciMLInterface.calibrate(; fit_args...)
 prob = SciMLOperations._to_prob(petri, params, initials, extrema(timesteps))
 sys = prob.f.sys
 

@@ -1,16 +1,16 @@
 FROM julia:1.8
-WORKDIR /scheduler
+WORKDIR /simulation-service
 
 # Install dependencies
-COPY Manifest.toml  /scheduler/
-COPY Project.toml /scheduler/
+COPY Manifest.toml  /simulation-service/
+COPY Project.toml /simulation-service/
 ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 
-# Install Scheduler source
-COPY src/ /scheduler/src/
+# Install simulation-service source
+COPY src/ /simulation-service/src/
 RUN julia -e 'using Pkg; Pkg.resolve();'
 
-# Launch Scheduler
+# Launch simulation-service
 EXPOSE 8080
-CMD [ "julia", "--threads",  "4", "-e", "using Scheduler; Scheduler.run!();" ]
+CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.run!();" ]

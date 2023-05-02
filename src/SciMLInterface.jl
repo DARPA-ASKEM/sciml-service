@@ -1,5 +1,5 @@
 """
-Shared source of truth for operations and scheduler    
+Shared source of truth for operations and REST API
 """
 module SciMLInterface
 
