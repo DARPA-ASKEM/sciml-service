@@ -48,7 +48,7 @@ Return an operation wrapped with necessary handlers
 """
 function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here?
     selected_operation = sciml_operations[name]
-    operation = if settings["SHOULD_LOG"] == "yes"
+    operation = if settings["SHOULD_LOG"]
                     function logged(args...; kwargs...)
                         with_logger(MQLogger()) do
                             selected_operation(args...; kwargs...)

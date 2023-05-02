@@ -37,12 +37,12 @@ macro setting(name::Symbol)
     :(@setting($name, String, nothing))
 end
 
-@setting SHOULD_LOG "no" # TODO(five): Make boolean
+@setting SHOULD_LOG false
 @setting RABBITMQ_LOGIN "guest"
 @setting RABBITMQ_PASSWORD "guest"
 @setting RABBITMQ_ROUTE "terarium"
 @setting RABBITMQ_PORT 5672
-@setting ENABLE_TDS false
+@setting ENABLE_TDS true
 @setting TDS_URL "http://localhost:8001"
 
 end # module Settings

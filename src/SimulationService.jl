@@ -35,20 +35,6 @@ function start_run!(prog::Function, req::Request)
 end
 
 """
-Transform request body into splattable dict with correct types   
-"""
-function get_args(req::Request)::Dict{Symbol,Any}
-    args = json(req, Dict{Symbol,Any})
-    function coerce!(key) # Is there a more idiomatic way of doing this
-        if haskey(args, key)
-            args[key] = conversions_for_valid_inputs[key](args[key])
-        end
-    end
-    coerce!.(keys(conversions_for_valid_inputs))
-    args
-end
-
-"""
 Find sim run and request a job with the given args    
 """
 function make_deterministic_run(req::Request, operation::String)
@@ -165,7 +151,7 @@ function register!()
                  schema: 
                      type: object
                      properties:
-                         petri:
+                         model:
                              type: string
                          initials:
                              type: object
@@ -182,12 +168,12 @@ function register!()
                              items:
                                  type: number
                      required:
-                         - petri
+                         - model
                          - initials
                          - params
                          - tspan
                      example:
-                         petri: "{}"
+                         model: "{}"
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
                          tspan: [0,20]
@@ -199,14 +185,14 @@ function register!()
        summary: Simulation calibrate
        description: Create calibrate job
        requestBody:
-         description: Arguments to pass into simulate function. `t` must contain every timestep used in `data`. 
+         description: Arguments to pass into simulate function. 
          required: true
          content:
              application/json:
                  schema: 
                      type: object
                      properties:
-                         petri:
+                         model:
                              type: string
                          initials:
                              type: object
@@ -218,28 +204,31 @@ function register!()
                              properties:
                                  variable:
                                      type: number
-                         timesteps:
-                             type: array
-                             items:
-                                 type: number
-                         data:
+                         timesteps_column:
+                            type: string
+                         feature_mappings:
                              type: object
                              properties:
-                                 column:
+                                 fromkey:
                                      type: array
                                      items:
-                                        type: number
+                                        type: string
+                         dataset:
+                            type: string
                      required:
-                         - petri
-                         - initials
+                         - model
+                         - initials 
                          - params
-                         - tspan
+                         - timesteps_column
+                         - feature_mappings
+                         - dataset
                      example:
-                         petri: "{}"
+                         model: "{}"
                          initials: {"compartment_a": 100.1, "compartment_b": 200} 
                          params: {"alpha": 0.5, "beta": 0.1}
-                         timesteps: []
-                         data: {}
+                         timesteps_column: []
+                         feature_mappings: {}
+                         dataset: ""
        responses:
          '201':
              description: The ID of the job created
