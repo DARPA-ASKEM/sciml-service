@@ -11,7 +11,7 @@ import Symbolics: getname, Num
 import SymbolicIndexingInterface: states, parameters
 import EasyModelAnalysis
 
-export forecast, calibrate
+export simulate, calibrate
 
 _to_prob(model, params, initials, tspan) = begin
     sys = ODESystem(model)
@@ -51,7 +51,7 @@ end
 """
 Simulate a scenario from a PetriNet    
 """
-function forecast(; model::AbstractPetriNet,
+function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64}

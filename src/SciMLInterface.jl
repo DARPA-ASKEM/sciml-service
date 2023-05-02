@@ -11,7 +11,7 @@ import CSV
 import DataFrames: DataFrame
 
 include("./SciMLOperations.jl")
-import .SciMLOperations: forecast, calibrate, _global_datafit
+import .SciMLOperations: simulate, calibrate
 include("./Queuing.jl"); import .Queuing: MQLogger
 include("./Settings.jl"); import .Settings: settings
 
@@ -21,9 +21,8 @@ export sciml_operations, conversions_for_valid_inputs
 Sim runs that can be created using the `/runs/sciml/{operation}` endpoint.    
 """
 sciml_operations = Dict{Symbol,Function}(
-    :forecast => forecast,
+    :simulate => simulate,
     :calibrate => calibrate,
-    # :global_calibrate => _global_datafit
     # TODO(five): Add `ensemble` operation
 )
 

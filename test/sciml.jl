@@ -29,12 +29,12 @@ j = JSON3.write(body)
 forecast_fn = _log("forecast.json")
 write(forecast_fn, j)
 
-df = SimulationService.SciMLInterface.forecast(; nt...)
+df = SimulationService.SciMLInterface.simulate(; nt...)
 @test df isa DataFrame
 
 params["t1"] = 0.1
 nt = (; model = petri, params, initials, tspan)
-df2 = SimulationService.SciMLInterface.forecast(; nt...)
+df2 = SimulationService.SciMLInterface.simulate(; nt...)
 
 timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])

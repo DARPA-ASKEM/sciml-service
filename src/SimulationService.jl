@@ -153,12 +153,12 @@ function register!()
 
 
     @swagger """
-    /calls/forecast:
+    /calls/simulate:
      post:
-       summary: Simulation forecast
-       description: Create forecast job
+       summary: Simulation simulate
+       description: Create simulate job
        requestBody:
-         description: Arguments to pass into forecast function 
+         description: Arguments to pass into simulate function 
          required: true
          content:
              application/json:
@@ -199,7 +199,7 @@ function register!()
        summary: Simulation calibrate
        description: Create calibrate job
        requestBody:
-         description: Arguments to pass into forecast function. `t` must contain every timestep used in `data`. 
+         description: Arguments to pass into simulate function. `t` must contain every timestep used in `data`. 
          required: true
          content:
              application/json:
