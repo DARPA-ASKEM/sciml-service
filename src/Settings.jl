@@ -21,7 +21,7 @@ macro setting(name::Symbol, type::Union{DataType, Type}, default_value::Any)
 
     function grab_env() 
         try 
-            return type(ENV[env_key])
+            return parse(type, ENV[env_key])
         catch e
             if isa(e, KeyError) && !isnothing(fixed_default)
                 return fixed_default
