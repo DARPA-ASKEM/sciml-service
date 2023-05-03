@@ -1,3 +1,6 @@
+"""
+Provide external awareness / service-related side-effects to SciML operations
+"""
 module ArgIO
 
 import Symbolics
@@ -12,6 +15,11 @@ include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, 
 export prepare_input, prepare_output
 
 
+"""
+Transform requests into arguments to be used by operation    
+
+Optionally, IDs are hydrated with the corresponding entity from TDS.
+"""
 function prepare_input(req::Request)
     args = json(req, Dict{Symbol,Any})
     if settings["ENABLE_TDS"]
@@ -25,6 +33,11 @@ function prepare_input(req::Request)
     args
 end
 
+"""
+Normalize the header of the resulting dataframe and return a CSV
+
+Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned.    
+"""
 function prepare_output(dataframe::DataFrame)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
@@ -39,6 +52,9 @@ function prepare_output(dataframe::DataFrame)
     end
 end
 
+"""
+Coerces NaN values to nothing for each parameter.    
+"""
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}})
     nan_to_nothing(value) = isnan(value) ? nothing : value
     Dict(key => nan_to_nothing(value) for (key, value) in params)

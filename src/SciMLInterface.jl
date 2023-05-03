@@ -27,7 +27,14 @@ sciml_operations = Dict{Symbol,Function}(
 )
 
 # TODO(five): Move to separate module??
+"""
+Transform string into dataframe before it is used as input    
+"""
 _coerce_dataset(val::String) = CSV.read(IOBuffer(val), DataFrame)
+
+"""
+Act as identity since the value is already coerced    
+"""
 _coerce_dataset(val::DataFrame) = val
 
 """

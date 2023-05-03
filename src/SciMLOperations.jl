@@ -2,6 +2,7 @@
 SciML Operation definitions
 """
 module SciMLOperations
+# TODO(five): Move helper functions to separate module?
 
 import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
 import DataFrames: DataFrame
@@ -13,6 +14,9 @@ import EasyModelAnalysis
 
 export simulate, calibrate
 
+"""
+Transform model representation into a SciML primitive, an ODEProblem
+"""
 _to_prob(model, params, initials, tspan) = begin
     sys = ODESystem(model)
     u0 = _symbolize_args(initials, states(sys))
@@ -20,7 +24,14 @@ _to_prob(model, params, initials, tspan) = begin
     ODEProblem(sys, u0, tspan, p; saveat=1)
 end
 
+# TODO(five): Clean these up
+"""
+Separate keys and values    
+"""
 _unzip(d::Dict) = (collect(keys(d)), collect(values(d)))
+"""
+Unzip a collection of pairs    
+"""
 unzip(ps) = first.(ps), last.(ps)
 
 """
@@ -40,6 +51,9 @@ function _symbolize_args(incoming_values, sys_vars)
     )
 end
 
+"""
+Generate data and timestep list from a dataframe    
+"""
 function _select_data(dataframe::DataFrame, feature_mappings:: Dict{String, String}, timesteps_column::String)
     data = Dict(
         to => dataframe[!, from]
