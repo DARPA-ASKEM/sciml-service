@@ -1,5 +1,5 @@
 """
-Shared source of truth for operations and scheduler    
+Shared source of truth for operations and REST API
 """
 module SciMLInterface
 
@@ -7,15 +7,11 @@ module SciMLInterface
 import Logging: with_logger
 import AlgebraicPetri: PropertyLabelledReactionNet, LabelledPetriNet, AbstractPetriNet
 import Catlab.CategoricalAlgebra: parse_json_acset
-import Oxygen: serveparallel, serve, resetstate, json, @post, @get
-import CSV: write
+import CSV
 import DataFrames: DataFrame
-import HTTP: Request
-import HTTP.Exceptions: StatusError
-# import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
 
 include("./SciMLOperations.jl")
-import .SciMLOperations: forecast, calibrate, _global_datafit
+import .SciMLOperations: simulate, calibrate
 include("./Queuing.jl"); import .Queuing: MQLogger
 include("./Settings.jl"); import .Settings: settings
 
@@ -25,37 +21,61 @@ export sciml_operations, conversions_for_valid_inputs
 Sim runs that can be created using the `/runs/sciml/{operation}` endpoint.    
 """
 sciml_operations = Dict{Symbol,Function}(
-    :forecast => forecast,
+    :simulate => simulate,
     :calibrate => calibrate,
-    # :global_calibrate => _global_datafit
     # TODO(five): Add `ensemble` operation
+)
+
+# TODO(five): Move to separate module??
+"""
+Transform string into dataframe before it is used as input    
+"""
+_coerce_dataset(val::String) = CSV.read(IOBuffer(val), DataFrame)
+
+"""
+Act as identity since the value is already coerced    
+"""
+_coerce_dataset(val::DataFrame) = val
+
+"""
+Inputs converted from payload to arguments expanded in operations.    
+"""
+conversions_for_valid_inputs = Dict{Symbol,Function}(
+    :model => (val) -> parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val), # hack for mira
+    :tspan => (val) -> Tuple{Float64,Float64}(val),
+    :params => (val) -> Dict{String,Float64}(val),
+    :initials => (val) -> Dict{String,Float64}(val),
+    :dataset => _coerce_dataset,
+    :feature_mappings => (val) -> Dict{String, String}(val),
+    :timesteps_column => (val) -> String(val)
 )
 
 """
 Return an operation wrapped with necessary handlers    
 """
 function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here?
-    operation = sciml_operations[name]
-    function logged(args...; kwargs...)
-        with_logger(MQLogger()) do
-            operation(args...; kwargs...)
-        end
+    selected_operation = sciml_operations[name]
+    operation = if settings["SHOULD_LOG"]
+                    function logged(args...; kwargs...)
+                        with_logger(MQLogger()) do
+                            selected_operation(args...; kwargs...)
+                        end
+                    end
+                    logged
+                else
+                    selected_operation
+                end
+                
+    # NOTE: This runs inside the job so we can't use it to validate on request ATM
+    function coerced_operation(arglist::Dict{Symbol, Any}) 
+        # TODO(five): Fail properly on extra params
+        fixed_args = Dict(
+           name => conversions_for_valid_inputs[name](value)
+           for (name, value) in arglist 
+        )
+        operation(;fixed_args...)
     end
-    settings["SHOULD_LOG"] == "yes" ? logged : operation
+    coerced_operation
 end
-
-
-"""
-Inputs converted from payload to arguments expanded in operations.    
-"""
-conversions_for_valid_inputs = Dict{Symbol,Function}(
-    :petri => (val) -> parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val), # hack for mira
-    :tspan => (val) -> Tuple{Float64,Float64}(val),
-    :params => (val) -> Dict{String,Float64}(val),
-    :initials => (val) -> Dict{String,Float64}(val),
-    :data => (val) -> Dict{String, Vector{Float64}}(val),
-    :timesteps => (val) -> Vector{Float64}(val)
-)
-
 
 end # module SciMLInterface

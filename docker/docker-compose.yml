@@ -5,7 +5,7 @@ networks:
     name: sim-execution
 services:
   api:
-    container_name: scheduler
+    container_name: simulation-service
     build: 
       context: ../
       dockerfile: docker/Dockerfile.api

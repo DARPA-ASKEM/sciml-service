@@ -28,11 +28,11 @@ function "check_suffix" {
 # ----------------------------------------------------------------------------------------------------------------------
 
 group "prod" {
-  targets = ["simulation-scheduler"]
+  targets = ["simulation-service"]
 }
 
 group "default" {
-  targets = ["simulation-scheduler-base"]
+  targets = ["simulation-service-base"]
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -42,12 +42,12 @@ target "_platforms" {
   platforms = ["linux/amd64"]
 }
 
-target "simulation-scheduler-base" {
+target "simulation-service-base" {
 	context = "."
-	tags = tag("simulation-scheduler", "", "")
+	tags = tag("simulation-service", "", "")
 	dockerfile = "docker/Dockerfile.api"
 }
 
-target "simulation-scheduler" {
-  inherits = ["_platforms", "simulation-scheduler-base"]
+target "simulation-service" {
+  inherits = ["_platforms", "simulation-service-base"]
 }

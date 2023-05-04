@@ -1,3 +1,6 @@
+"""
+RabbitMQ Integration    
+"""
 module Queuing
 
 import Logging: AbstractLogger, LogLevel
@@ -7,6 +10,9 @@ import JSON3 as JSON
 
 include("./Settings.jl"); import .Settings: settings
 
+"""
+Connect to channel    
+"""
 function get_channel()
     conn = connection(; 
         virtualhost="/", 
@@ -18,6 +24,9 @@ function get_channel()
     channel(conn, UNUSED_CHANNEL, true)
 end
 
+"""
+Publish JSON to RabbitMQ    
+"""
 function publish_to_rabbitmq(content)
     chan = get_channel() # TODO(five): Don't recreate for each call
     json = convert(Vector{UInt8}, codeunits(JSON.write(content)))
@@ -26,10 +35,16 @@ function publish_to_rabbitmq(content)
     basic_publish(chan, message; exchange="", routing_key=settings["RABBITMQ_ROUTE"])
 end
 
+"""
+Logger that calls an arbitrary hook on a message    
+"""
 struct MQLogger <: AbstractLogger
     publish_hook::Function
 end
 
+"""
+MQLogger preloaded with RabbitMQ publishing    
+"""
 MQLogger() = MQLogger(publish_to_rabbitmq)
 
 Logging.shouldlog(::MQLogger, args...; kwargs...) = true
