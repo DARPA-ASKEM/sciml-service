@@ -9,6 +9,7 @@ _logdir() = joinpath(@__DIR__, "logs")
 _log(s) = joinpath(_logdir(), s)
 mkpath(_logdir())
 
+# NOTE: THIS IS AN OUTDATED MODEL, USE MODEL REPRESENTATION INSTEAD
 bn = "BIOMD0000000955_miranet.json"
 fn = _data(bn)
 T = PropertyLabelledReactionNet{Number,Number,Dict}

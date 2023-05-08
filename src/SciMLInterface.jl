@@ -10,10 +10,10 @@ import Catlab.CategoricalAlgebra: parse_json_acset
 import CSV
 import DataFrames: DataFrame
 
-include("./SciMLOperations.jl")
-import .SciMLOperations: simulate, calibrate
+include("./SciMLOperations.jl"); import .SciMLOperations: simulate, calibrate
 include("./Queuing.jl"); import .Queuing: MQLogger
 include("./Settings.jl"); import .Settings: settings
+include("./Converter.jl"); import .Converter: to_petri
 
 export sciml_operations, conversions_for_valid_inputs
 
@@ -41,7 +41,7 @@ _coerce_dataset(val::DataFrame) = val
 Inputs converted from payload to arguments expanded in operations.    
 """
 conversions_for_valid_inputs = Dict{Symbol,Function}(
-    :model => (val) -> parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val), # hack for mira
+    :model => to_petri, # parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val), # hack for mira
     :tspan => (val) -> Tuple{Float64,Float64}(val),
     :params => (val) -> Dict{String,Float64}(val),
     :initials => (val) -> Dict{String,Float64}(val),

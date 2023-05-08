@@ -1,17 +1,13 @@
 {
-  "model": "{\"T\":[{\"tname\":\"exp\"},{\"tname\":\"conv\"},{\"tname\":\"rec\"},{\"tname\":\"death\"}],\"S\":[{\"sname\":\"S\"},{\"sname\":\"E\"},{\"sname\":\"I\"},{\"sname\":\"R\"},{\"sname\":\"D\"}],\"I\":[{\"it\":1,\"is\":1},{\"it\":1,\"is\":3},{\"it\":2,\"is\":2},{\"it\":3,\"is\":3},{\"it\":4,\"is\":3}],\"O\":[{\"ot\":1,\"os\":2},{\"ot\":1,\"os\":3},{\"ot\":2,\"os\":3},{\"ot\":3,\"os\":4},{\"ot\":4,\"os\":5}]}",
+  "model": "{\"name\":\"SIRModel\",\"schema\":\"https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/petrinet_v0.1/petrinet/petrinet_schema.json\",\"description\":\"SIRmodelcreatedbyBen,Micah,Brandon\",\"model_version\":\"0.1\",\"model\":{\"states\":[{\"id\":\"S\",\"name\":\"Susceptible\",\"grounding\":{\"identifiers\":{\"ido\":\"0000514\"}},\"initial\":{\"expression\":\"S0\",\"expression_mathml\":\"<mi>S0</mi>\"}},{\"id\":\"I\",\"name\":\"Infected\",\"grounding\":{\"identifiers\":{\"ido\":\"0000511\"}},\"initial\":{\"expression\":\"I0\",\"expression_mathml\":\"<mi>I0</mi>\"}},{\"id\":\"R\",\"name\":\"Recovered\",\"grounding\":{\"identifiers\":{\"ido\":\"0000592\"}},\"initial\":{\"expression\":\"R0\",\"expression_mathml\":\"<mi>R0</mi>\"}}],\"transitions\":[{\"id\":\"inf\",\"input\":[\"S\",\"I\"],\"output\":[\"I\",\"I\"],\"properties\":{\"name\":\"Infection\",\"rate\":{\"expression\":\"S*I*beta\",\"expression_mathml\":\"<apply><times/><ci>S</ci><ci>I</ci><ci>beta</ci></apply>\"}}},{\"id\":\"rec\",\"input\":[\"I\"],\"output\":[\"R\"],\"properties\":{\"name\":\"Recovery\",\"rate\":{\"expression\":\"I*gamma\",\"expression_mathml\":\"<apply><times/><ci>I</ci><ci>gamma</ci></apply>\"}}}],\"parameters\":[{\"id\":\"beta\",\"description\":\"infectionrate\",\"value\":0.027,\"distribution\":{\"type\":\"StandardUniform1\",\"parameters\":{\"minimum\":0.026,\"maximum\":0.028}}},{\"id\":\"gamma\",\"description\":\"recoveryrate\",\"grounding\":{\"identifiers\":{\"askemo\":\"0000013\"}},\"value\":0.14,\"distribution\":{\"type\":\"StandardUniform1\",\"parameters\":{\"minimum\":0.1,\"maximum\":0.18}}},{\"id\":\"S0\",\"description\":\"Totalsusceptiblepopulationattimestep0\",\"value\":1000},{\"id\":\"I0\",\"description\":\"Totalinfectedpopulationattimestep0\",\"value\":1},{\"id\":\"R0\",\"description\":\"Totalrecoveredpopulationattimestep0\",\"value\":0}]},\"metadata\":{\"processed_at\":1682964953,\"processed_by\":\"mit:process-node1\",\"variable_statements\":[{\"id\":\"v0\",\"variable\":{\"id\":\"v0\",\"name\":\"VE\",\"metadata\":[{\"type\":\"text_annotation\",\"value\":\"VaccineEffectiveness\"},{\"type\":\"text_annotation\",\"value\":\"VaccineEffectiveness\"}],\"dkg_groundings\":[],\"column\":[{\"id\":\"9-2\",\"name\":\"new_persons_vaccinated\",\"dataset\":{\"id\":\"9\",\"name\":\"usa-vaccinations.csv\",\"metadata\":\"https://github.com/DARPA-ASKEM/program-milestones/blob/main/6-month-milestone/evaluation/scenario_3/ta_1/google-health-data/usa-vaccinations.csv\"}},{\"id\":\"9-3\",\"name\":\"cumulative_persons_vaccinated\",\"dataset\":{\"id\":\"9\",\"name\":\"usa-vaccinations.csv\",\"metadata\":\"https://github.com/DARPA-ASKEM/program-milestones/blob/main/6-month-milestone/evaluation/scenario_3/ta_1/google-health-data/usa-vaccinations.csv\"}}],\"paper\":{\"id\":\"COVID-19VaccineEffectivenessbyProductandTiminginNewYorkState\",\"file_directory\":\"https://www.medrxiv.org/content/10.1101/2021.10.08.21264595v1\",\"doi\":\"10.1101/2021.10.08.21264595\"},\"equations\":[]},\"metadata\":[],\"provenance\":{\"method\":\"MITannotation\",\"description\":\"text,dataset,formulaannotation(chunwei@mit.edu)\"}}]}}",
   "initials": {
-    "S": 0.49457800495224524,
-    "E": 0.26745259325403603,
-    "I": 0.4497387877393193,
-    "R": 0.32807705995998604,
-    "D": 0.8545934885162726
+    "S": 999,
+    "I": 1,
+    "R": 0
   },
   "tspan": [0.0,90.0],
   "params": {
-    "exp":   0.16207166221196045,
-    "conv":  0.7009195813964052,
-    "rec":   0.7040317196117394,
-    "death": 0.15807853921067516
+    "inf":  0.27,
+    "rec": 0.14
    }
 }

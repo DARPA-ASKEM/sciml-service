@@ -60,7 +60,7 @@ end
 @setting RABBITMQ_PASSWORD "guest"
 @setting RABBITMQ_ROUTE "terarium"
 @setting RABBITMQ_PORT 5672
-@setting ENABLE_TDS true
+@setting ENABLE_TDS false
 @setting TDS_URL "http://localhost:8001"
 
 end # module Settings
