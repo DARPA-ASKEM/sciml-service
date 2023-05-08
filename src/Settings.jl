@@ -20,13 +20,17 @@ macro setting(name::Symbol, type::Union{DataType, Type}, default_value::Any)
     env_key = String(name)
 
     function grab_env() 
-        try 
-            return parse(type, ENV[env_key])
-        catch e
-            if isa(e, KeyError) && !isnothing(fixed_default)
+        if in(env_key, keys(ENV))
+            if type == String
+                return ENV[env_key]
+            else
+                return parse(type, ENV[env_key])
+            end
+        else
+            if !isnothing(fixed_default)
                 return fixed_default
             else
-                throw(e)
+                throw("Variable not in environment and no default provided!")
             end
         end
     end
