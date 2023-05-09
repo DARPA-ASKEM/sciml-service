@@ -4,7 +4,7 @@ SciML Operation definitions
 module SciMLOperations
 # TODO(five): Move helper functions to separate module?
 
-import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
+import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet, PropertyLabelledPetriNet
 import DataFrames: DataFrame
 import DifferentialEquations: solve
 import ModelingToolkit: ODESystem, ODEProblem, remake
@@ -54,10 +54,10 @@ end
 """
 Generate data and timestep list from a dataframe    
 """
-function _select_data(dataframe::DataFrame, feature_mappings:: Dict{String, String}, timesteps_column::String)
+function _select_data(dataframe::DataFrame, feature_mappings::Dict{String,String}, timesteps_column::String)
     data = Dict(
         to => dataframe[!, from]
-        for (from, to) in feature_mappings 
+        for (from, to) in feature_mappings
     )
     dataframe[!, timesteps_column], data
 end
@@ -70,7 +70,7 @@ function simulate(; model::AbstractPetriNet,
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64}
 )::DataFrame
-    sol = solve(_to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
+    sol = solve(_to_prob(model, params, initials, tspan); progress=true, progress_steps=1)
     DataFrame(sol)
 end
 
@@ -83,8 +83,8 @@ function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,
-    feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp"
+    feature_mappings::Dict{String,String},
+    timesteps_column::String="timestamp"
 )
     timesteps, data = _select_data(dataset, feature_mappings, timesteps_column)
     prob = _to_prob(model, params, initials, extrema(timesteps))
@@ -115,6 +115,24 @@ function _global_datafit(; model::LabelledPetriNet,
     p = _symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
     fitp = global_datafit(prob, collect(p), t, data)
     DataFrame(fitp)
+end
+
+struct ASKEMPetriNet
+    petri::PropertyLabelledPetriNet
+    json::AbstractDict
+end
+
+"https://github.com/DARPA-ASKEM/simulation-service/issues/25#issuecomment-1535190893"
+function json_to_petri(original_json)
+    # original_json = JSON.parsefile(file)
+    model = original_json["model"]
+    state_props = Dict(Symbol(s["id"]) => s for s in model["states"])
+    states = [Symbol(s["id"]) for s in model["states"]]
+    transition_props = Dict(Symbol(t["id"]) => t["properties"] for t in model["transitions"])
+    transitions = [Symbol(t["id"]) => (Symbol.(t["input"]) => Symbol.(t["output"])) for t in model["transitions"]]
+
+    petri = LabelledPetriNet(states, transitions...)
+    ASKEMPetriNet(PropertyLabelledPetriNet{Dict}(petri, state_props, transition_props), original_json)
 end
 
 end # module SciMLOperations
