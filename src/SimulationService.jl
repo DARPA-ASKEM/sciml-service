@@ -18,6 +18,18 @@ import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result
 
 include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
 include("./ArgIO.jl"); import .ArgIO: prepare_output, prepare_input
+include("./Settings.jl"); import .Settings: settings
+
+"""
+Print out settings
+"""
+function health_check()
+    tds_url = settings["TDS_URL"]
+    enable_tds = settings["ENABLE_TDS"]
+    mq_route = settings["RABBITMQ_ROUTE"]
+
+    return "Simulation-service. TDS_URL=$tds_url, RABBITMQ_ROUTE=$mq_route, ENABLE_TDS=$enable_tds"
+end
 
 """
 Schedule a sim run
@@ -83,6 +95,7 @@ function retrieve_job(_, id::Int64, element::String)
     end
 end
 
+
 """
 Specify endpoint to function mappings
 """
@@ -97,7 +110,7 @@ function register!()
              description: Returns notice that service has started
 
     """
-    @get "/" () -> "simulation scheduler is running"
+    @get "/" health_check
 
     @swagger """
     /runs/{id}/status:
