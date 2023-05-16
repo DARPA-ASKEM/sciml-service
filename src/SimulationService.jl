@@ -7,14 +7,14 @@ __precompile__(false)
 
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
-import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
+import Oxygen: serveparallel, resetstate, json, setschema, terminate, @post, @get
 import SwaggerMarkdown: build, @swagger, OpenAPI, validate_spec, openApiToDict, DOCS
 import YAML: load
 import CSV: write
 import JSON3 as JSON
 import DataFrames: DataFrame
 import HTTP: Request, Response
-import JobSchedulers: scheduler_start, set_scheduler, submit!, job_query, result, Job
+import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, update_queue!, Job, JobSchedulers
 
 include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
 include("./ArgIO.jl"); import .ArgIO: prepare_output, prepare_input
@@ -94,6 +94,8 @@ function retrieve_job(_, id::Int64, element::String)
         )
     end
 end
+
+
 
 
 """
@@ -269,11 +271,18 @@ function run!()
             update_second=0.05,
             max_job=5000,
         )
-        serveparallel(host="0.0.0.0")
+        try
+            serveparallel(host="0.0.0.0")
+        catch exception
+            if isa(exception, InterruptException)
+                scheduler_stop()
+                terminate()
+            else
+                throw(exception)
+            end
+        end
     else
-        println("WARNING: The server is not parallelized. You may need to start the REPL like `julia --threads 5`")
-        scheduler_start()
-        serve(host="0.0.0.0")
+        throw("The server is not parallelized. You need to start the REPL like `julia --threads 5`")
     end
 end
 

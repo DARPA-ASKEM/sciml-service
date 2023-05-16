@@ -451,9 +451,9 @@ version = "0.4.0"
 
 [[deps.DiffEqBase]]
 deps = ["ArrayInterface", "ChainRulesCore", "DataStructures", "Distributions", "DocStringExtensions", "EnumX", "FastBroadcast", "ForwardDiff", "FunctionWrappers", "FunctionWrappersWrappers", "LinearAlgebra", "Logging", "Markdown", "MuladdMacro", "Parameters", "PreallocationTools", "Printf", "RecursiveArrayTools", "Reexport", "Requires", "SciMLBase", "Setfield", "SparseArrays", "Static", "StaticArraysCore", "Statistics", "Tricks", "TruncatedStacktraces", "ZygoteRules"]
-git-tree-sha1 = "ed1108bd9a68977d5e0cbd8b2882293337c15f1c"
+git-tree-sha1 = "228d4b7cd0336014cd6f131b35af851f97d5f114"
 uuid = "2b5f629d-d688-5b77-993f-72d75c75574e"
-version = "6.124.0"
+version = "6.124.1"
 
 [[deps.DiffEqCallbacks]]
 deps = ["DataStructures", "DiffEqBase", "ForwardDiff", "LinearAlgebra", "Markdown", "NLsolve", "Parameters", "RecipesBase", "RecursiveArrayTools", "SciMLBase", "StaticArraysCore"]
@@ -502,10 +502,10 @@ uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
 version = "0.25.92"
 
 [[deps.DistributionsAD]]
-deps = ["Adapt", "ChainRules", "ChainRulesCore", "Compat", "DiffRules", "Distributions", "FillArrays", "LinearAlgebra", "NaNMath", "PDMats", "Random", "Requires", "SpecialFunctions", "StaticArrays", "StatsBase", "StatsFuns", "ZygoteRules"]
-git-tree-sha1 = "c0eb6f717434b3f13cd7a24b412938d952849d77"
+deps = ["Adapt", "ChainRules", "ChainRulesCore", "Compat", "Distributions", "FillArrays", "LinearAlgebra", "PDMats", "Random", "Requires", "SpecialFunctions", "StaticArrays", "StatsFuns", "ZygoteRules"]
+git-tree-sha1 = "c19c3ee030a0abb9366e6d3c5eafff519471f645"
 uuid = "ced4e74d-a319-5a8a-b0ac-84af2272839c"
-version = "0.6.45"
+version = "0.6.47"
 
 [[deps.DocStringExtensions]]
 deps = ["LibGit2"]
@@ -1003,7 +1003,9 @@ version = "1.0.3"
 
 [[deps.JobSchedulers]]
 deps = ["Dates", "JLD2", "JSON", "Logging", "OrderedCollections", "Pipelines", "PrettyTables", "Printf", "Reexport", "Term", "Terming", "Test"]
-git-tree-sha1 = "0ab3ee6c69e45746c0493688ff9a3efe91ea0888"
+git-tree-sha1 = "c1424b00ea1d37df3bfe87c2e4ad16b28be671da"
+repo-rev = "feat/accept-interrupt"
+repo-url = "https://github.com/fivegrant/JobSchedulers.jl"
 uuid = "eeff360b-c02d-44d3-ab26-4013c616a17e"
 version = "0.7.12"
 
@@ -1357,9 +1359,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MathOptInterface]]
 deps = ["BenchmarkTools", "CodecBzip2", "CodecZlib", "DataStructures", "ForwardDiff", "JSON", "LinearAlgebra", "MutableArithmetics", "NaNMath", "OrderedCollections", "PrecompileTools", "Printf", "SparseArrays", "SpecialFunctions", "Test", "Unicode"]
-git-tree-sha1 = "8e054675d393ce5866dcdd6a071075e25e21a39c"
+git-tree-sha1 = "6ba094e471106981b278f60179170d8b10985052"
 uuid = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
-version = "1.15.1"
+version = "1.16.0"
 
 [[deps.MathProgBase]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -1646,9 +1648,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "7302075e5e06da7d000d9bfa055013e3e85578ca"
+git-tree-sha1 = "a5aef8d4a6e8d81f171b2bd4be5265b01384c74c"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.5.9"
+version = "2.5.10"
 
 [[deps.Pipe]]
 git-tree-sha1 = "6842804e7867b115ca9de748a0cf6b364523c16d"
