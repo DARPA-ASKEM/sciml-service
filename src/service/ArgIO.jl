@@ -9,7 +9,7 @@ import CSV
 import HTTP: Request
 import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 
-include("./Settings.jl"); import .Settings: settings
+include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
 
 export prepare_input, prepare_output
