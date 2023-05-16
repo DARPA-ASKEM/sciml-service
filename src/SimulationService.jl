@@ -17,7 +17,7 @@ import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, update_queue!, Job, JobSchedulers
 
 include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
-include("./ArgIO.jl"); import .ArgIO: prepare_output, prepare_input
+include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
 include("./Settings.jl"); import .Settings: settings
 
 """
