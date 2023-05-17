@@ -12,7 +12,7 @@ import CSV: write
 import JSON3 as JSON
 import DataFrames: DataFrame
 import HTTP: Request, Response
-import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, update_queue!, Job, JobSchedulers
+import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
 include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
 include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
@@ -37,7 +37,9 @@ Schedule a sim run
 function start_run!(prog::Function, req::Request)
     # TODO(five): Spawn remote workers and run jobs on them
     # TODO(five): Handle Python so a probabilistic case can work
+    job_id = generate_id()
     sim_run = Job(@task(prog(req)))
+    sim_run.id = job_id
     submit!(sim_run)
     Response(
         201,

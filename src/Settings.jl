@@ -67,7 +67,7 @@ end
 @setting ENABLE_REMOTE_DATA_HANDLING false
 @setting TDS_URL "http://localhost:8001"
 @setting BUCKET "jataware-sim-service-test"
-@setting AWS_ACCESS_KEY_ID "user"
-@setting AWS_SECRET_ACCESS_KEY "password"
+@setting AWS_ACCESS_KEY_ID "miniouser"
+@setting AWS_SECRET_ACCESS_KEY "miniopass"
 
 end # module Settings
