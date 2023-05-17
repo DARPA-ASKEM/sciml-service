@@ -7,6 +7,7 @@ import DataFrames: DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
+import JobSchedulers: generate_id
 import AWS: @service, AWSConfig
 @service S3
 
@@ -47,10 +48,11 @@ function upload(output::DataFrame)
         "body" => take!(io)
     )
     
-    handle = "sim.test.csv"
+    handle = "$generate_id().csv" # TODO(five): Change this to the actual job ID once it's being passed in
     
     S3.put_object(settings["BUCKET"], handle, params)
     
+    return handle
 end
 
 end # module AssetManager
