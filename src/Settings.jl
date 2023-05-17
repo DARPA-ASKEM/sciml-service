@@ -66,6 +66,7 @@ end
 @setting RABBITMQ_PORT 5672
 @setting ENABLE_REMOTE_DATA_HANDLING false
 @setting TDS_URL "http://localhost:8001"
+@setting FILE_STORE "http://localhost:9000"
 @setting BUCKET "jataware-sim-service-test"
 @setting AWS_ACCESS_KEY_ID "miniouser"
 @setting AWS_SECRET_ACCESS_KEY "miniopass"
