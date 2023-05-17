@@ -3,8 +3,6 @@ Interface for relevant ASKEM simulation libraries
 """
 module SimulationService 
 
-__precompile__(false)
-
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
 import Oxygen: serveparallel, resetstate, json, setschema, terminate, @post, @get
@@ -20,15 +18,17 @@ include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_op
 include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
 include("./Settings.jl"); import .Settings: settings
 
+export run!
+
 """
 Print out settings
 """
 function health_check()
     tds_url = settings["TDS_URL"]
-    enable_tds = settings["ENABLE_TDS"]
+    enable_remote = settings["ENABLE_REMOTE_DATA_HANDLING"]
     mq_route = settings["RABBITMQ_ROUTE"]
 
-    return "Simulation-service. TDS_URL=$tds_url, RABBITMQ_ROUTE=$mq_route, ENABLE_TDS=$enable_tds"
+    return "Simulation-service. TDS_URL=$tds_url, RABBITMQ_ROUTE=$mq_route, ENABLE_REMOTE_DATA_HANDLING=$enable_remote"
 end
 
 """

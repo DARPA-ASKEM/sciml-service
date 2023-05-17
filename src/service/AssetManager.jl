@@ -7,9 +7,10 @@ import DataFrames: DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
-import AWS: @service
+import AWS: @service, AWSConfig
 @service S3
 
+include("../Settings.jl")
 import .Settings: settings
 
 export fetch_dataset, fetch_model, upload
@@ -27,7 +28,7 @@ end
 Return csv from TDS by ID
 """
 function fetch_dataset(dataset_id::Int64)
-    url = "$(settings["TDS_URL"])/datasets/$dataset_id/files"
+    url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
     io = IOBuffer()
     Downloads.download(url, io)
     seekstart(io)
@@ -42,14 +43,13 @@ function upload(output::DataFrame)
     io = IOBuffer()
     CSV.write(io, output)
     seekstart(io)
-    
     params = Dict(
-        "Body" => io
+        "body" => take!(io)
     )
     
-    handle = "subject"
+    handle = "sim.test.csv"
     
-    S3.put_object("idk", handle, params)
+    S3.put_object(settings["BUCKET"], handle, params)
     
 end
 
