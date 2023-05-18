@@ -37,6 +37,28 @@ function AWS.generate_service_url(aws::MinioConfig, service::String, resource::S
     service == "s3" || throw(ArgumentError("Can only handle s3 requests to Minio"))
     return string(aws.endpoint, resource)
 end
+
+function generate_service_url(aws::AbstractAWSConfig, service::String, resource::String)
+    SERVICE_HOST = "amazonaws.com"
+    reg = region(aws)
+
+    regionless_services = ("iam", "route53")
+
+    if service in regionless_services || (service == "sdb" && reg == DEFAULT_REGION)
+        reg = ""
+    end
+
+    if length(settings["FILE_STORE"]) == 0
+        return string(
+            "https://", service, ".", isempty(reg) ? "" : "$reg.", SERVICE_HOST, resource
+        )
+    else
+        return string(settings["FILE_STORE"], resource)
+        
+    end
+end
+
+
     
 """
 Return model JSON as string from TDS by ID
@@ -73,7 +95,7 @@ function upload(output::DataFrame)
     handle = "$(generate_id()).csv" # TODO(five): Change this to the actual job ID once it's being passed in
     
     # TODO(five): Run this once rather than every invocation
-    if length(settings["FILE_STORE"]) != 0
+    if false #length(settings["FILE_STORE"]) != 0
         global_aws_config(
             MinioConfig(
                 settings["FILE_STORE"], 
