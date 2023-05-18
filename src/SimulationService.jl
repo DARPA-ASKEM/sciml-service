@@ -3,8 +3,6 @@ Interface for relevant ASKEM simulation libraries
 """
 module SimulationService 
 
-__precompile__(false)
-
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
 import Oxygen: serveparallel, resetstate, json, setschema, terminate, @post, @get
