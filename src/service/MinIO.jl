@@ -31,10 +31,6 @@ end
 AWS.check_credentials(c::Credentials) = c
     
 function AWS.generate_service_url(aws::MinioConfig, service::String, resource::String)
-    return string(aws.endpoint, resource)
-end
-
-function AWS.generate_service_url(aws::MinioConfig, service::String, resource::String)
     service == "s3" || throw(ArgumentError("Can only handle S3 requests"))
     SERVICE_HOST = "amazonaws.com"
     reg = AWS.region(aws)
