@@ -68,10 +68,24 @@ Simulate a scenario from a PetriNet
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
-    tspan=(0.0, 100.0)::Tuple{Float64,Float64}
+    tspan=(0.0, 100.0)::Tuple{Float64,Float64},
+    f
 )::DataFrame
-    sol = solve(_to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
-    DataFrame(sol)
+    prob = _to_prob(model, params, initials, tspan)
+    # integ.sol.prob.f.sys
+    sys = prob.f.sys
+    sts, ps = states(sys), parameters(sys)
+
+    integ = init(prob; progress = true, progress_steps = 1)
+    for x in integ
+        # i += 1
+        # if i % 500 == 0 
+            # push to rabbitmq
+            # JSON3.write(Dict(string.(sts) .=> integ.u))
+        # end
+        f(x, job_id)
+    end
+    DataFrame(integ.sol)
 end
 
 "
@@ -84,7 +98,8 @@ function calibrate(; model::AbstractPetriNet,
     initials::Dict{String,Float64},
     dataset::DataFrame,
     feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp"
+    timesteps_column::String = "timestamp",
+    # f
 )
     timesteps, data = _select_data(dataset, feature_mappings, timesteps_column)
     prob = _to_prob(model, params, initials, extrema(timesteps))
@@ -94,10 +109,28 @@ function calibrate(; model::AbstractPetriNet,
     ks, vs = unzip(collect(p))
     p = Num.(ks) .=> vs
     data = SciMLOperations._symbolize_args(data, states(sys))
-    fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
+    opt_step_count = 0 
+
+    function mycallback(p, l) # p::Vector{Float64}, l::Float64
+        ppairs = Pair.(ks, p)
+        f(ppairs, l)
+        return false
+    end
+
+    fitp = mydatafit(prob, p, timesteps, data; callback=mycallback)
     @info fitp
     # DataFrame(fitp)
     fitp
+end
+
+function mydatafit(prob, p::Vector{Pair{Num, Float64}}, t, data; loss = l2loss, callback=nothing)
+    pvals = getfield.(p, :second)
+    pkeys = getfield.(p, :first)
+    oprob = OptimizationProblem(loss, pvals,
+                                lb = fill(-Inf, length(p)),
+                                ub = fill(Inf, length(p)), (prob, pkeys, t, data))
+    res = solve(oprob, NLopt.LN_SBPLX(); callback)
+    Pair.(pkeys, res.u)
 end
 
 "long running functions like global_datafit and sensitivity wrappers will need to be refactored to share callback info incrementally"

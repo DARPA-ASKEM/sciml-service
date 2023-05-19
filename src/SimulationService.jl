@@ -3,7 +3,7 @@ Interface for relevant ASKEM simulation libraries
 """
 module SimulationService 
 
-__precompile__(false)
+# __precompile__(false)
 
 import AlgebraicPetri: LabelledPetriNet
 import Symbolics
