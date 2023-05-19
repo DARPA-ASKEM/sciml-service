@@ -36,24 +36,27 @@ function fetch_dataset(dataset_id::Int64)
 end
 
 """
-Upload a CSV to TDS
+Upload a CSV to S3/MinIO
 """
 function upload(output::DataFrame)
     # TODO(five): Stream so there isn't duplication
+    CONTENT_TYPE = "text/csv"
     io = IOBuffer()
     CSV.write(io, output)
     seekstart(io)
     params = Dict(
-        "body" => take!(io)
+        "body" => take!(io),
+        "content-type" => CONTENT_TYPE
     )
     
     handle = "$(generate_id()).csv" # TODO(five): Change this to the actual job ID once it's being passed in
 
+    # TODO(five): Call once
     AWS.global_aws_config(config)
 
     S3.put_object(settings["BUCKET"], handle, params)
     
-    return handle
+    return Dict("data_path" => handle)
 end
 
 end # module AssetManager

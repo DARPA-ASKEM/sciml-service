@@ -7,8 +7,11 @@ import AWS: AWS, AbstractAWSConfig
 include("../Settings.jl")
 import .Settings: settings
 
-export MinioConfig, region, credentials, SimpleCredentials, check_credentials, generate_service_url, config
+export MinioConfig, region, credentials, Credentials, check_credentials, generate_service_url, config
 
+"""
+MinIO/S3 Configuration
+"""
 struct MinioConfig <: AbstractAWSConfig
    endpoint::String
    region::String
@@ -17,12 +20,15 @@ end
 AWS.region(config::MinioConfig) = config.region
 AWS.credentials(config::MinioConfig) = config.creds
     
-struct SimpleCredentials
+"""
+Generic Credentials that work for MinIO and S3
+"""
+struct Credentials
     access_key_id::String
     secret_key::String
     token::String
 end
-AWS.check_credentials(c::SimpleCredentials) = c
+AWS.check_credentials(c::Credentials) = c
     
 function AWS.generate_service_url(aws::MinioConfig, service::String, resource::String)
     return string(aws.endpoint, resource)
@@ -45,7 +51,7 @@ end
 config = MinioConfig(
     settings["FILE_STORE"], 
     AWS.DEFAULT_REGION, 
-    SimpleCredentials(settings["AWS_ACCESS_KEY_ID"], settings["AWS_SECRET_ACCESS_KEY"], "")
+    Credentials(settings["AWS_ACCESS_KEY_ID"], settings["AWS_SECRET_ACCESS_KEY"], "")
 )
 
 end # module MinIO
