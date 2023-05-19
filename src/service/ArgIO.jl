@@ -9,7 +9,7 @@ import CSV
 import HTTP: Request
 import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 
-include("./Settings.jl"); import .Settings: settings
+include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
 
 export prepare_input, prepare_output
@@ -22,7 +22,7 @@ Optionally, IDs are hydrated with the corresponding entity from TDS.
 """
 function prepare_input(req::Request)
     args = json(req, Dict{Symbol,Any})
-    if settings["ENABLE_TDS"]
+    if settings["ENABLE_REMOTE_DATA_HANDLING"]
         if in(:model, keys(args))
             args[:model] = fetch_model(args[:model])   
         end
@@ -42,7 +42,7 @@ function prepare_output(dataframe::DataFrame)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
     rename!(dataframe, "timestamp" => "timestep")
-    if !settings["ENABLE_TDS"]
+    if !settings["ENABLE_REMOTE_DATA_HANDLING"]
         io = IOBuffer()
         # TODO(five): Write to remote server
         CSV.write(io, dataframe)
