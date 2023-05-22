@@ -14,8 +14,7 @@ import DataFrames: DataFrame
 import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
-include("./contracts/Interface.jl"); import .Interface: sciml_operations, use_operation, conversions_for_valid_inputs
-include("./contracts/SystemInputs.jl"); import .SystemInputs: Context
+include("./contracts/Interface.jl"); import .Interface: get_operation, use_operation, conversions_for_valid_inputs, Context
 include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
 include("./Settings.jl"); import .Settings: settings
 
@@ -45,7 +44,7 @@ Schedule a sim run given an operation
 function make_deterministic_run(req::Request, operation::String)
     # TODO(five): Spawn remote workers and run jobs on them
     # TODO(five): Handle Python so a probabilistic case can work
-    if !haskey(sciml_operations, Symbol(operation))
+    if isnothing(get_operation(operation))
         return Response(
             404,
             ["Content-Type" => "text/plain; charset=utf-8"],
