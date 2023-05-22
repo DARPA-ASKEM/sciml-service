@@ -1,7 +1,7 @@
 """
-Shared source of truth for operations and REST API
+SciML Operations interface for the simulation service
 """
-module SciMLInterface
+module Interface
 
 
 import Logging: with_logger
@@ -10,10 +10,9 @@ import Catlab.CategoricalAlgebra: parse_json_acset
 import CSV
 import DataFrames: DataFrame
 
-include("./SciMLOperations.jl")
-import .SciMLOperations: simulate, calibrate
-include("./Queuing.jl"); import .Queuing: MQLogger
-include("./Settings.jl"); import .Settings: settings
+include("../operations/Operations.jl")
+import .Operations: simulate, calibrate
+include("../Settings.jl"); import .Settings: settings
 
 export sciml_operations, conversions_for_valid_inputs
 
@@ -54,17 +53,7 @@ conversions_for_valid_inputs = Dict{Symbol,Function}(
 Return an operation wrapped with necessary handlers    
 """
 function use_operation(context)
-    selected_operation = sciml_operations[context[:operation]]
-    operation = if settings["SHOULD_LOG"]
-                    function logged(args...; kwargs...)
-                        with_logger(MQLogger()) do
-                            selected_operation(args...; kwargs...)
-                        end
-                    end
-                    logged
-                else
-                    selected_operation
-                end
+    operation = sciml_operations[context[:operation]]
                 
     # NOTE: This runs inside the job so we can't use it to validate on request ATM
     function coerced_operation(arglist::Dict{Symbol, Any}) 
@@ -77,4 +66,4 @@ function use_operation(context)
     end
 end
 
-end # module SciMLInterface
+end # module Interface

@@ -8,7 +8,7 @@ import Logging
 import AMQPClient: amqps_configure, basic_publish, channel, connection, Message, AMQPS_DEFAULT_PORT, UNUSED_CHANNEL
 import JSON3 as JSON
 
-include("./Settings.jl"); import .Settings: settings
+include("../Settings.jl"); import .Settings: settings
 
 """
 Connect to channel    

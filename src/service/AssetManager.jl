@@ -28,7 +28,7 @@ Return csv from TDS by ID
 """
 function fetch_dataset(dataset_id::Int64)
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
-    io = IOBufferi()
+    io = IOBuffer()
     Downloads.download(url, io)
     seekstart(io)
     CSV.read(io, DataFrame)
