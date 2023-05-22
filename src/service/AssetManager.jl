@@ -7,7 +7,6 @@ import DataFrames: DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
-import JobSchedulers: generate_id
 using AWS
 include("./MinIO.jl"); using .MinIO
 include("../Settings.jl"); import .Settings: settings
@@ -38,7 +37,7 @@ end
 """
 Upload a CSV to S3/MinIO
 """
-function upload(output::DataFrame)
+function upload(output::DataFrame, job_id)
     # TODO(five): Stream so there isn't duplication
     CONTENT_TYPE = "text/csv"
     io = IOBuffer()
@@ -49,7 +48,7 @@ function upload(output::DataFrame)
         "content-type" => CONTENT_TYPE
     )
     
-    handle = "$(generate_id()).csv" # TODO(five): Change this to the actual job ID once it's being passed in
+    handle = "$job_id.csv"
 
     # TODO(five): Call once
     AWS.global_aws_config(config)

@@ -32,27 +32,18 @@ function health_check()
 end
 
 """
-Schedule a sim run
+Generate the task to run with the correct context    
 """
-function start_run!(prog::Function, req::Request)
-    # TODO(five): Spawn remote workers and run jobs on them
-    # TODO(five): Handle Python so a probabilistic case can work
-    job_id = generate_id()
-    sim_run = Job(@task(prog(req)))
-    sim_run.id = job_id
-    submit!(sim_run)
-    Response(
-        201,
-        ["Content-Type" => "application/json; charset=utf-8"],
-        body=JSON.write("id" => sim_run.id)
-    )
+function contextualize_prog(context)
+    prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
 end
 
 """
-Find sim run and request a job with the given args    
+Schedule a sim run given an operation
 """
 function make_deterministic_run(req::Request, operation::String)
-    # TODO(five): Handle output on a less case by case basis
+    # TODO(five): Spawn remote workers and run jobs on them
+    # TODO(five): Handle Python so a probabilistic case can work
     if !haskey(sciml_operations, Symbol(operation))
         return Response(
             404,
@@ -60,8 +51,20 @@ function make_deterministic_run(req::Request, operation::String)
             body="Operation not found"
         )
     end
-    prog = prepare_output ∘ use_operation(Symbol(operation)) ∘ prepare_input
-    start_run!(prog, req)
+    context = Dict(
+        :job_id => generate_id(),
+        :operation => Symbol(operation),
+        :interactivity_hook => (args...) -> (),  
+    )
+    prog = contextualize_prog(context)
+    sim_run = Job(@task(prog(req)))
+    sim_run.id = context[:job_id]
+    submit!(sim_run)
+    Response(
+        201,
+        ["Content-Type" => "application/json; charset=utf-8"],
+        body=JSON.write("id" => sim_run.id)
+    )
 end
 
 """

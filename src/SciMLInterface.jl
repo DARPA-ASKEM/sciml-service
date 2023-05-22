@@ -53,8 +53,8 @@ conversions_for_valid_inputs = Dict{Symbol,Function}(
 """
 Return an operation wrapped with necessary handlers    
 """
-function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here?
-    selected_operation = sciml_operations[name]
+function use_operation(context)
+    selected_operation = sciml_operations[context[:operation]]
     operation = if settings["SHOULD_LOG"]
                     function logged(args...; kwargs...)
                         with_logger(MQLogger()) do
@@ -73,9 +73,8 @@ function use_operation(name::Symbol) #NOTE: Should we move `prepare_output` here
            name => conversions_for_valid_inputs[name](value)
            for (name, value) in arglist 
         )
-        operation(;fixed_args...)
+        operation(;fixed_args..., context=context)
     end
-    coerced_operation
 end
 
 end # module SciMLInterface

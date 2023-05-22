@@ -68,7 +68,8 @@ Simulate a scenario from a PetriNet
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
-    tspan=(0.0, 100.0)::Tuple{Float64,Float64}
+    tspan=(0.0, 100.0)::Tuple{Float64,Float64},
+    context
 )::DataFrame
     sol = solve(_to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
     DataFrame(sol)
@@ -84,7 +85,8 @@ function calibrate(; model::AbstractPetriNet,
     initials::Dict{String,Float64},
     dataset::DataFrame,
     feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp"
+    timesteps_column::String = "timestamp",
+    context,
 )
     timesteps, data = _select_data(dataset, feature_mappings, timesteps_column)
     prob = _to_prob(model, params, initials, extrema(timesteps))
