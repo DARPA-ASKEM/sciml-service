@@ -15,7 +15,7 @@ import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
 include("./contracts/Interface.jl"); import .Interface: get_operation, use_operation, conversions_for_valid_inputs, Context
-include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
+include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input; import .Service.Queuing: publish_to_rabbitmq
 include("./Settings.jl"); import .Settings: settings
 
 export run!
@@ -51,9 +51,12 @@ function make_deterministic_run(req::Request, operation::String)
             body="Operation not found"
         )
     end
+
+    publish_hook = settings["SHOULD_LOG"] ? publish_to_rabbitmq : (args...) -> nothing
+
     context = Context(
         generate_id(),
-        (args...) -> (),  
+        publish_hook,  
         Symbol(operation),
     )
     prog = contextualize_prog(context)
