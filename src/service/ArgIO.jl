@@ -12,9 +12,7 @@ import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
 
-export prepare_input, prepare_output, Context
-
-Context = Union{Dict{Symbol, Any}, NamedTuple} # TODO(five): Make this type more general
+export prepare_input, prepare_output
 
 
 """
@@ -38,7 +36,7 @@ end
 """
 Generate a `prepare_input` function that is already contextualized    
 """
-function prepare_input(context::Context)
+function prepare_input(context)
     function contextualized_prepare_input(req::Request)
         prepare_input(req; context...)
     end
@@ -74,7 +72,7 @@ end
 """
 Generate a `prepare_output` function that is already contextualized    
 """
-function prepare_output(context::Context)
+function prepare_output(context)
     function contextualized_prepare_output(arg)
         prepare_output(arg; context...)
     end

@@ -10,8 +10,7 @@ import Catlab.CategoricalAlgebra: parse_json_acset
 import CSV
 import DataFrames: DataFrame
 
-include("../operations/Operations.jl")
-import .Operations: simulate, calibrate
+include("../operations/Operations.jl"); import .Operations: simulate, calibrate
 include("../Settings.jl"); import .Settings: settings
 
 export sciml_operations, conversions_for_valid_inputs
@@ -53,7 +52,7 @@ conversions_for_valid_inputs = Dict{Symbol,Function}(
 Return an operation wrapped with necessary handlers    
 """
 function use_operation(context)
-    operation = sciml_operations[context[:operation]]
+    operation = sciml_operations[context.operation]
                 
     # NOTE: This runs inside the job so we can't use it to validate on request ATM
     function coerced_operation(arglist::Dict{Symbol, Any}) 

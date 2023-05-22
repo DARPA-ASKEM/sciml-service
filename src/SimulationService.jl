@@ -15,6 +15,7 @@ import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
 include("./contracts/Interface.jl"); import .Interface: sciml_operations, use_operation, conversions_for_valid_inputs
+include("./contracts/SystemInputs.jl"); import .SystemInputs: Context
 include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
 include("./Settings.jl"); import .Settings: settings
 
@@ -51,14 +52,14 @@ function make_deterministic_run(req::Request, operation::String)
             body="Operation not found"
         )
     end
-    context = Dict(
-        :job_id => generate_id(),
-        :operation => Symbol(operation),
-        :interactivity_hook => (args...) -> (),  
+    context = Context(
+        generate_id(),
+        (args...) -> (),  
+        Symbol(operation),
     )
     prog = contextualize_prog(context)
     sim_run = Job(@task(prog(req)))
-    sim_run.id = context[:job_id]
+    sim_run.id = context.job_id
     submit!(sim_run)
     Response(
         201,

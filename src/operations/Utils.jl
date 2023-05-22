@@ -1,3 +1,6 @@
+"""
+Unexposed helper functions for operations    
+"""
 module Utils
 
 import DataFrames: DataFrame
