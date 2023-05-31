@@ -1,4 +1,4 @@
-using SimulationService, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, SimulationService.SciMLInterface.SciMLOperations
+using SimulationService, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, SimulationService.Interface.Operations
 using CSV, DataFrames, JSONTables
 using ForwardDiff
 
@@ -29,12 +29,12 @@ j = JSON3.write(body)
 forecast_fn = _log("forecast.json")
 write(forecast_fn, j)
 
-df = SimulationService.SciMLInterface.simulate(; nt...)
+df = SimulationService.Interface.get_operation(:simulate)(; nt..., context=nothing)
 @test df isa DataFrame
 
 params["t1"] = 0.1
 nt = (; model = petri, params, initials, tspan)
-df2 = SimulationService.SciMLInterface.simulate(; nt...)
+df2 = SimulationService.Interface.get_operation(:simulate)(; nt..., context=nothing)
 
 timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
@@ -44,8 +44,8 @@ fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
-fitp = SimulationService.SciMLInterface.calibrate(; fit_args...)
-prob = SciMLOperations._to_prob(petri, params, initials, extrema(timesteps))
+fitp = SimulationService.Interface.get_operation(:calibrate)(; fit_args..., context=nothing)
+prob = SimulationService.Interface.Operations.Utils.to_prob(petri, params, initials, extrema(timesteps))
 sys = prob.f.sys
 
 # example of dloss/dp

@@ -14,8 +14,8 @@ import DataFrames: DataFrame
 import HTTP: Request, Response
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
-include("./SciMLInterface.jl"); import .SciMLInterface: sciml_operations, use_operation, conversions_for_valid_inputs
-include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input
+include("./contracts/Interface.jl"); import .Interface: get_operation, use_operation, conversions_for_valid_inputs, Context
+include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input; import .Service.Queuing: publish_to_rabbitmq
 include("./Settings.jl"); import .Settings: settings
 
 export run!
@@ -32,36 +32,42 @@ function health_check()
 end
 
 """
-Schedule a sim run
+Generate the task to run with the correct context    
 """
-function start_run!(prog::Function, req::Request)
-    # TODO(five): Spawn remote workers and run jobs on them
-    # TODO(five): Handle Python so a probabilistic case can work
-    job_id = generate_id()
-    sim_run = Job(@task(prog(req)))
-    sim_run.id = job_id
-    submit!(sim_run)
-    Response(
-        201,
-        ["Content-Type" => "application/json; charset=utf-8"],
-        body=JSON.write("id" => sim_run.id)
-    )
+function contextualize_prog(context)
+    prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
 end
 
 """
-Find sim run and request a job with the given args    
+Schedule a sim run given an operation
 """
 function make_deterministic_run(req::Request, operation::String)
-    # TODO(five): Handle output on a less case by case basis
-    if !haskey(sciml_operations, Symbol(operation))
+    # TODO(five): Spawn remote workers and run jobs on them
+    # TODO(five): Handle Python so a probabilistic case can work
+    if isnothing(get_operation(operation))
         return Response(
             404,
             ["Content-Type" => "text/plain; charset=utf-8"],
             body="Operation not found"
         )
     end
-    prog = prepare_output ∘ use_operation(Symbol(operation)) ∘ prepare_input
-    start_run!(prog, req)
+
+    publish_hook = settings["SHOULD_LOG"] ? publish_to_rabbitmq : (args...) -> nothing
+
+    context = Context(
+        generate_id(),
+        publish_hook,  
+        Symbol(operation),
+    )
+    prog = contextualize_prog(context)
+    sim_run = Job(@task(prog(req)))
+    sim_run.id = context.job_id
+    submit!(sim_run)
+    Response(
+        201,
+        ["Content-Type" => "application/json; charset=utf-8"],
+        body=JSON.write("id" => sim_run.id)
+    )
 end
 
 """
