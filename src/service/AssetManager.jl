@@ -17,7 +17,7 @@ export fetch_dataset, fetch_model, upload
 """
 Return model JSON as string from TDS by ID
 """
-function fetch_model(model_id::Int64)
+function fetch_model(model_id::String)
     response = HTTP.get("$(settings["TDS_URL"])/models/$model_id", ["Content-Type" => "application/json"])
     body = response.body |> JSON.read ∘ String
     body.content
@@ -26,7 +26,7 @@ end
 """
 Return csv from TDS by ID
 """
-function fetch_dataset(dataset_id::Int64)
+function fetch_dataset(dataset_id::String)
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
     io = IOBuffer()
     Downloads.download(url, io)
