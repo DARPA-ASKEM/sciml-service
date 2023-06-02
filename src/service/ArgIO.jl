@@ -24,10 +24,10 @@ function prepare_input(req::Request; context...)
     args = json(req, Dict{Symbol,Any})
     if settings["ENABLE_REMOTE_DATA_HANDLING"]
         if in(:model, keys(args))
-            args[:model] = fetch_model(args[:model])   
+            args[:model] = fetch_model(string(args[:model]))
         end
-        if in(:dataset, keys(args)) 
-            args[:dataset] = fetch_dataset(args[:dataset])   
+        if in(:dataset, keys(args))
+            args[:dataset] = fetch_dataset(string(args[:dataset]))
         end
     end
     args
