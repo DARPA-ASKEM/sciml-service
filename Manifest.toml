@@ -1171,11 +1171,9 @@ version = "1.0.3"
 
 [[deps.JobSchedulers]]
 deps = ["Dates", "JLD2", "JSON", "Logging", "OrderedCollections", "Pipelines", "PrettyTables", "Printf", "Reexport", "Term", "Terming", "Test"]
-git-tree-sha1 = "c1424b00ea1d37df3bfe87c2e4ad16b28be671da"
-repo-rev = "feat/accept-interrupt"
-repo-url = "https://github.com/fivegrant/JobSchedulers.jl"
+git-tree-sha1 = "568c4fe4c1ae76ada68604c9a1ea6f76e6030104"
 uuid = "eeff360b-c02d-44d3-ab26-4013c616a17e"
-version = "0.7.12"
+version = "0.8.1"
 
 [[deps.JpegTurbo_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
