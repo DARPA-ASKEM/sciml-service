@@ -13,4 +13,4 @@ RUN julia -e 'using Pkg; Pkg.resolve();'
 
 # Launch simulation-service
 EXPOSE 8080
-CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.run!();" ]
+CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.start!();" ]

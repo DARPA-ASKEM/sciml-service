@@ -18,7 +18,7 @@ include("./contracts/Interface.jl"); import .Interface: get_operation, use_opera
 include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_input; import .Service.Queuing: publish_to_rabbitmq
 include("./Settings.jl"); import .Settings: settings
 
-export run!
+export start!, stop!
 
 """
 Print out settings
@@ -268,30 +268,30 @@ end
 """
 Load API endpoints and start listening for sim run jobs
 """
-function run!()
+function start!()
     resetstate()
     register!()
     if Threads.nthreads() > 1
-        scheduler_start()
         set_scheduler(
             max_cpu=0.5,
             max_mem=0.5,
             update_second=0.05,
             max_job=5000,
         )
-        try
-            serveparallel(host="0.0.0.0")
-        catch exception
-            if isa(exception, InterruptException)
-                scheduler_stop()
-                terminate()
-            else
-                throw(exception)
-            end
-        end
+        scheduler_start()
+        serveparallel(host="0.0.0.0", async=true)
     else
         throw("The server is not parallelized. You need to start the REPL like `julia --threads 5`")
     end
+    nothing
+end
+
+"""
+Shutdown server    
+"""
+function stop!()
+    scheduler_stop()
+    terminate()
 end
 
 end # module SimulationService
