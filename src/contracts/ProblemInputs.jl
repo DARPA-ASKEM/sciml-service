@@ -6,6 +6,7 @@ module ProblemInputs
 import AlgebraicPetri: PropertyLabelledReactionNet, LabelledPetriNet, AbstractPetriNet
 import Catlab.CategoricalAlgebra: parse_json_acset
 import DataFrames: DataFrame
+import CSV
 
 export conversions_for_valid_inputs
 
