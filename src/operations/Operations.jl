@@ -54,7 +54,7 @@ function calibrate(; model::AbstractPetriNet,
     pbounds = Num.(ks) .=> fill((0.0, Inf,), length(ks)) # specific to Petri
     data = symbolize_args(data, states(sys))
     solve_kws = isnothing(context) ? (;) : (; callback=context.interactivity_hook)
-    fitp = EasyModelAnalysis.global_datafit(prob, pbounds, timesteps, data; solve_kws)
+    fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data; solve_kws)
     fitp
 end
 
