@@ -5,7 +5,7 @@ module Execution
 
 import HTTP: Request, Response
 import JSON3 as JSON
-import JobSchedulers: submit!, job_query, result, generate_id, Job
+import JobSchedulers: submit!, job_query, result, generate_id, Job, JobSchedulers
 
 include("../contracts/Interface.jl"); import .Interface: get_operation, use_operation, Context
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
@@ -13,6 +13,14 @@ include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
 include("../Settings.jl"); import .Settings: settings
 
 export make_deterministic_run, retrieve_job
+
+SCHEDULER_TO_API_STATUS_MAP = Dict(
+    JobSchedulers.QUEUING => :queued,
+    JobSchedulers.RUNNING => :running,
+    JobSchedulers.DONE => :complete,
+    JobSchedulers.FAILED => :error,
+    JobSchedulers.CANCELLED => :error,
+)
 
 """
 Generate the task to run with the correct context    
@@ -66,7 +74,7 @@ function retrieve_job(_, id::Int64, element::String)
         )
     end
     if element == "status"
-        return Dict("status" => job.state)
+        return Dict("status" => SCHEDULER_TO_API_STATUS_MAP[job.state])
     elseif element == "result"
         if job.state == :done
             return result(job)
