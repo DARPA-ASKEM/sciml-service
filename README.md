@@ -9,3 +9,13 @@ With docker compose:
 ```
 docker compose --file docker/docker-compose.yml up --build
 ```
+
+With Julia REPL:
+
+```
+julia> using SimulationService
+julia> start!()
+julia> # output of REST API and Scheduler
+julia> stop!()
+julia> # you may safely leave the repl or rerun `start!`
+````
