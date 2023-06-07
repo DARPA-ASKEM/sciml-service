@@ -4,9 +4,10 @@ Manage jobs
 module Execution
 
 import HTTP: Request, Response
-import JobSchedulers: submit!, job_query, result, generate_id, Job,
+import JSON3 as JSON
+import JobSchedulers: submit!, job_query, result, generate_id, Job
 
-include("./contracts/Interface.jl"); import .Interface: get_operation, use_operation,  Context
+include("../contracts/Interface.jl"); import .Interface: get_operation, use_operation, Context
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
 include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
 include("../Settings.jl"); import .Settings: settings
@@ -33,7 +34,7 @@ function make_deterministic_run(req::Request, operation::String)
         )
     end
 
-    publish_hook = settings["SHOULD_LOG"] ? publish_to_rabbitmq : (args...) -> nothing
+    publish_hook = settings["SHOULD_LOG"] ? publish_to_rabbitmq : (_...) -> nothing
 
     context = Context(
         generate_id(),

@@ -12,7 +12,7 @@ import JSON3 as JSON
 import JobSchedulers: scheduler_start, set_scheduler, scheduler_stop, submit!, job_query, result, generate_id, update_queue!, Job, JobSchedulers
 
 include("./service/Service.jl")
-import .Service make_deterministic_run, retrieve_job
+import .Service: make_deterministic_run, retrieve_job
 include("./Settings.jl"); import .Settings: settings
 
 export start!, stop!
