@@ -7,6 +7,7 @@ include("./AssetManager.jl")
 include("./ArgIO.jl")
 include("./Queuing.jl")
 include("./Execution.jl")
-@reexport using .ArgIO, .AssetManager, .Queuing, .Execution
+include("./Time.jl")
+@reexport using .ArgIO, .AssetManager, .Queuing, .Execution, .Time
 
 end # module Service

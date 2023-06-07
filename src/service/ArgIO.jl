@@ -11,6 +11,7 @@ import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 
 include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
+include("./Time.jl"); import .Time: normalize_tspan
 
 export prepare_input, prepare_output
 
@@ -23,11 +24,18 @@ Optionally, IDs are hydrated with the corresponding entity from TDS.
 function prepare_input(req::Request; context...)
     args = json(req, Dict{Symbol,Any})
     if settings["ENABLE_REMOTE_DATA_HANDLING"]
-        if in(:model, keys(args))
-            args[:model] = fetch_model(string(args[:model]))
+        if in(:model_config_id, keys(args))
+            args[:model] = fetch_model(string(args[:model_config_id]))
+            pop!(:model_config_id, args)
         end
-        if in(:dataset, keys(args))
-            args[:dataset] = fetch_dataset(string(args[:dataset]))
+        if in(:dataset_id, keys(args))
+            args[:dataset] = fetch_dataset(string(args[:dataset_id]))
+            pop!(:dataset_id, args)
+        end
+        if in(:timespan, keys(args))
+            span = args[:timespan]
+            args[:tspan] = normalize_tspan(span[:start_epoch],span[:end_epoch],span[:tstep_seconds])
+            pop!(:timespan, args)
         end
     end
     args
