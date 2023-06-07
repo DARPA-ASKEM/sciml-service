@@ -15,7 +15,7 @@ include("./Utils.jl")
 import .Utils: to_prob, unzip, symbolize_args, select_data
 
 # NOTE: Export symbols here are automatically made available to the API (`/calls/{name}`)
-export simulate, calibrate
+export simulate, calibrate, ensemble_calibrate
 
 """
 Simulate a scenario from a PetriNet    
