@@ -7,8 +7,7 @@ import AlgebraicPetri: LabelledPetriNet
 import Symbolics
 import Oxygen: serveparallel, resetstate, json, setschema, terminate, @post, @get
 import SwaggerMarkdown: build, @swagger, OpenAPI, validate_spec, openApiToDict, DOCS
-import YAML: load
-import CSV: write
+import YAML
 import JSON3 as JSON
 import DataFrames: DataFrame
 import HTTP: Request, Response
@@ -19,6 +18,8 @@ include("./service/Service.jl"); import .Service.ArgIO: prepare_output, prepare_
 include("./Settings.jl"); import .Settings: settings
 
 export start!, stop!
+
+OPENAPI_SPEC = "paths.yaml"
 
 """
 Print out settings
@@ -110,157 +111,15 @@ end
 Specify endpoint to function mappings
 """
 function register!()
-    @swagger """
-    /:
-     get:
-      summary: Healthcheck
-      description: A basic healthcheck for the simulation scheduler  
-      responses:
-         '200':
-             description: Returns notice that service has started
-
-    """
     @get "/" health_check
 
-    @swagger """
-    /runs/{id}/status:
-     get:
-       summary: Simulation status
-       description: Get status of specified job
-       parameters:
-         - name: id
-           in: path
-           required: true
-           description: ID of the simulation job
-           schema:
-             type: number
-       responses:
-         '200':
-             description: JSON containing status of the job
-         '404':
-             description: Job does not exist
-    /runs/{id}/result:
-     get:
-       summary: Simulation results
-       description: Get the resulting CSV from a job
-       parameters:
-         - name: id
-           in: path
-           required: true
-           description: ID of the simulation job
-           schema:
-             type: number
-       responses:
-         '200':
-             description: CSV containing timesteps for each compartment
-         '400':
-             description: Job has not yet completed
-         '404':
-             description: Job does not exist
-    """
     @get "/runs/{id}/{element}" retrieve_job
 
+    @post "/{operation}" make_deterministic_run
 
-    @swagger """
-    /calls/simulate:
-     post:
-       summary: Simulation simulate
-       description: Create simulate job
-       requestBody:
-         description: Arguments to pass into simulate function 
-         required: true
-         content:
-             application/json:
-                 schema: 
-                     type: object
-                     properties:
-                         model:
-                             type: string
-                         initials:
-                             type: object
-                             properties:
-                                 compartment:
-                                     type: number
-                         params:
-                             type: object
-                             properties:
-                                 variable:
-                                     type: number
-                         tspan:
-                             type: array
-                             items:
-                                 type: number
-                     required:
-                         - model
-                         - initials
-                         - params
-                         - tspan
-                     example:
-                         model: "{}"
-                         initials: {"compartment_a": 100.1, "compartment_b": 200} 
-                         params: {"alpha": 0.5, "beta": 0.1}
-                         tspan: [0,20]
-       responses:
-         '201':
-             description: The ID of the job created
-    /calls/calibrate:
-     post:
-       summary: Simulation calibrate
-       description: Create calibrate job
-       requestBody:
-         description: Arguments to pass into simulate function. 
-         required: true
-         content:
-             application/json:
-                 schema: 
-                     type: object
-                     properties:
-                         model:
-                             type: string
-                         initials:
-                             type: object
-                             properties:
-                                 compartment:
-                                     type: number
-                         params:
-                             type: object
-                             properties:
-                                 variable:
-                                     type: number
-                         timesteps_column:
-                            type: string
-                         feature_mappings:
-                             type: object
-                             properties:
-                                 fromkey:
-                                     type: array
-                                     items:
-                                        type: string
-                         dataset:
-                            type: string
-                     required:
-                         - model
-                         - initials 
-                         - params
-                         - timesteps_column
-                         - feature_mappings
-                         - dataset
-                     example:
-                         model: "{}"
-                         initials: {"compartment_a": 100.1, "compartment_b": 200} 
-                         params: {"alpha": 0.5, "beta": 0.1}
-                         timesteps_column: []
-                         feature_mappings: {}
-                         dataset: ""
-       responses:
-         '201':
-             description: The ID of the job created
-    """
-    @post "/calls/{operation}" make_deterministic_run
-
-    info = Dict("title" => "Simulation Service", "version" => "0.1.0")
+    info = Dict("title" => "Simulation Service", "version" => "0.6.0")
     openAPI = OpenAPI("3.0.0", info)
-    openAPI.paths = load(join(DOCS)) # NOTE: Has to be done manually because it's broken in SwaggerMarkdown
+    openAPI.paths = YAML.load_file(OPENAPI_SPEC)
     documentation = build(openAPI)
     setschema(documentation)
 end
