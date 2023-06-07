@@ -680,7 +680,7 @@ version = "0.4.6"
 
 [[deps.EasyModelAnalysis]]
 deps = ["DifferentialEquations", "Distributions", "GlobalSensitivity", "LinearAlgebra", "ModelingToolkit", "NLopt", "Optimization", "OptimizationBBO", "OptimizationMOI", "OptimizationNLopt", "Plots", "Reexport", "SciMLBase", "SciMLExpectations", "Turing"]
-git-tree-sha1 = "62ccc0ec19dff1ce722810b78b01ab459e47d1b6"
+path = "/home/suds/.julia/dev/EasyModelAnalysis/"
 uuid = "ef4b24a4-a090-4686-a932-e7e56a5a83bd"
 version = "0.1.9"
 

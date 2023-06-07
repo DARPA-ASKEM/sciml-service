@@ -11,7 +11,8 @@ import Symbolics: Num
 import SymbolicIndexingInterface: states, parameters
 import EasyModelAnalysis
 
-include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_data
+include("./Utils.jl")
+import .Utils: to_prob, unzip, symbolize_args, select_data
 
 # NOTE: Export symbols here are automatically made available to the API (`/calls/{name}`)
 export simulate, calibrate
@@ -25,7 +26,7 @@ function simulate(; model::AbstractPetriNet,
     tspan=(0.0, 100.0)::Tuple{Float64,Float64},
     context
 )::DataFrame
-    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
+    sol = solve(to_prob(model, params, initials, tspan); progress=true, progress_steps=1)
     DataFrame(sol)
 end
 
@@ -38,39 +39,28 @@ function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,
-    feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp",
-    context,
+    feature_mappings::Dict{String,String},
+    timesteps_column::String="timestamp",
+    context
 )
     timesteps, data = select_data(dataset, feature_mappings, timesteps_column)
     prob = to_prob(model, params, initials, extrema(timesteps))
     sys = prob.f.sys
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-    @show p
+    # @show p
     ks, vs = unzip(collect(p))
     p = Num.(ks) .=> vs
+
+    pbounds = Num.(ks) .=> fill((0.0, Inf,), length(ks)) # specific to Petri
     data = symbolize_args(data, states(sys))
-    fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
-    @info fitp
-    # DataFrame(fitp)
+    solve_kws = isnothing(context) ? (;) : (; callback=context.interactivity_hook)
+    fitp = EasyModelAnalysis.global_datafit(prob, pbounds, timesteps, data; solve_kws)
     fitp
 end
 
-"long running functions like global_datafit and sensitivity wrappers will need to be refactored to share callback info incrementally"
-function _global_datafit(; model::LabelledPetriNet,
-    parameter_bounds::Dict{String,Tuple{Float64,Float64}},
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
-    t::Vector{Number},
-    data::Dict{String,Vector{Float64}}
-)::DataFrame
-    ks, vs = unzip(parameter_bounds)
-    @assert all(issorted.(vs))
-    prob = to_prob(model, params, initials, extrema(t))
-    sys = prob.f.sys
-    p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-    fitp = global_datafit(prob, collect(p), t, data)
-    DataFrame(fitp)
+
+function ensemble_calibrate(args;kws...)
+    [calibrate(;fit_args..., kws...) for fit_args in args]
 end
 
 end # module Operations 
