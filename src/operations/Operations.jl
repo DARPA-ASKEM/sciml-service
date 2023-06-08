@@ -25,7 +25,7 @@ function simulate(; model::AbstractPetriNet,
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64},
     context,
-    callback = (t,u,integrator) -> Dict(:t => t, :u => u, :integrator => integrator)
+    callback = (t, u, integrator) -> Dict(:t => t, :u => u, :integrator => integrator)
 )::DataFrame
     solve_callback = (t, u, integrator) -> context.interactivity_hook(callback(t, u, integrator))
     sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1,
