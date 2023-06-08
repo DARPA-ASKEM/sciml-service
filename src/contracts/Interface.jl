@@ -31,7 +31,7 @@ function use_operation(context::Context)
     operation = get_operation(context.operation)
 
     method = collect(methods(operation))[1]
-    inputs = ccall(:jl_uncompress_argnames, Vector{Symbol}, (Any,), method.slot_syms)[2:last]
+    inputs = ccall(:jl_uncompress_argnames, Vector{Symbol}, (Any,), method.slot_syms)[2:end]
     
                 
     # NOTE: This runs inside the job so we can't use it to validate on request ATM
@@ -39,7 +39,7 @@ function use_operation(context::Context)
         # TODO(five): Fail properly on extra params
         fixed_args = Dict(
            name => conversions_for_valid_inputs[name](arglist[name])
-           for name in inputs 
+           for name in inputs if name != :context
         )
         operation(;fixed_args..., context=context)
     end

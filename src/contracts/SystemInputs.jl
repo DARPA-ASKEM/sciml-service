@@ -9,6 +9,10 @@ struct Context
     job_id::Int64
     interactivity_hook::Function
     operation::Symbol
+    raw_args
+    function Context(job_id::Int64, interactivity_hook::Function, operation::Symbol, raw_args)
+        new(job_id, interactivity_hook, operation, deepcopy(raw_args))
+    end
 end 
 
 function Base.iterate(context::Context, state=nothing)

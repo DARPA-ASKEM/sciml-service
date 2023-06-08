@@ -5,7 +5,9 @@ module Execution
 
 import HTTP: Request, Response
 import JSON3 as JSON
+import Oxygen: json
 import JobSchedulers: submit!, job_query, result, generate_id, Job, JobSchedulers
+import UUIDs: UUID
 
 include("../contracts/Interface.jl"); import .Interface: get_operation, use_operation, Context
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
@@ -42,21 +44,23 @@ function make_deterministic_run(req::Request, operation::String)
         )
     end
 
-    publish_hook = settings["SHOULD_LOG"] ? publish_to_rabbitmq : (_...) -> nothing
+    publish_hook = settings["RABBITMQ_ENABLED"] ? publish_to_rabbitmq : (_...) -> nothing
 
+    args = json(req, Dict{Symbol,Any})
     context = Context(
         generate_id(),
         publish_hook,  
         Symbol(operation),
+        args
     )
     prog = contextualize_prog(context)
-    sim_run = Job(@task(prog(req)))
+    sim_run = Job(@task(prog(args)))
     sim_run.id = context.job_id
     submit!(sim_run)
     Response(
         201,
         ["Content-Type" => "application/json; charset=utf-8"],
-        body=JSON.write("id" => sim_run.id)
+        body=JSON.write("simulation_id" => UUID(sim_run.id))
     )
 end
 
@@ -64,7 +68,8 @@ end
 """
 Get status of sim
 """
-function retrieve_job(_, id::Int64, element::String)
+function retrieve_job(_, uuid::String, element::String)
+    id = Int64(UUID(uuid).value)
     job = job_query(id)
     if isnothing(job)
         return Response(

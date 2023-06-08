@@ -130,7 +130,7 @@
                 type: string
                 enum: [SciML, CIEMSS]
                 example: CIEMSS              
-              model_configuration_ids:
+              model_config_ids:
                 type: array
                 items:
                   type: string

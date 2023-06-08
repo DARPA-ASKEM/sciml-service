@@ -60,12 +60,11 @@ macro setting(name::Symbol)
     :(@setting($name, String, nothing))
 end
 
-@setting SHOULD_LOG false
+@setting RABBITMQ_ENABLED false
 @setting RABBITMQ_LOGIN "guest"
 @setting RABBITMQ_PASSWORD "guest"
 @setting RABBITMQ_ROUTE "terarium"
 @setting RABBITMQ_PORT 5672
-@setting ENABLE_REMOTE_DATA_HANDLING false
 @setting TDS_URL "http://localhost:8001"
 @setting FILE_STORE "http://localhost:9000"
 @setting BUCKET "jataware-sim-service-test"

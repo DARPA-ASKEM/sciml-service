@@ -4,39 +4,54 @@ Provide external awareness / service-related side-effects to SciML operations
 module ArgIO
 
 import Symbolics
-import DataFrames: DataFrame, rename!
+import DataFrames: rename!, transform!, DataFrame, ByRow
 import CSV
 import HTTP: Request
-import Oxygen: serveparallel, serve, resetstate, json, setschema, @post, @get
 
 include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
-include("./Time.jl"); import .Time: normalize_tspan
 
 export prepare_input, prepare_output
 
+"""
+Change arbitrary timespan to the range 0, 1, ...n
+"""
+function normalize_tspan(tstart, tend, stepsize)
+    diff = tend - tstart
+    if diff % stepsize != 0
+        throw("Steps exceed the end of timespan!")
+    end
+    (0, floor(diff/stepsize))
+end
+
+"""
+Transform naive step into epoch
+"""
+function get_step(tstart, stepsize, step)::Int
+    stepsize*step + tstart
+end
 
 """
 Transform requests into arguments to be used by operation    
 
 Optionally, IDs are hydrated with the corresponding entity from TDS.
 """
-function prepare_input(req::Request; context...)
-    args = json(req, Dict{Symbol,Any})
-    if settings["ENABLE_REMOTE_DATA_HANDLING"]
-        if in(:model_config_id, keys(args))
-            args[:model] = fetch_model(string(args[:model_config_id]))
-            pop!(:model_config_id, args)
-        end
-        if in(:dataset_id, keys(args))
-            args[:dataset] = fetch_dataset(string(args[:dataset_id]))
-            pop!(:dataset_id, args)
-        end
-        if in(:timespan, keys(args))
-            span = args[:timespan]
-            args[:tspan] = normalize_tspan(span[:start_epoch],span[:end_epoch],span[:tstep_seconds])
-            pop!(:timespan, args)
-        end
+function prepare_input(args; context...)
+    if in(:model_config_id, keys(args))
+        args[:model] = fetch_model(string(args[:model_config_id]))
+    end
+    if in(:dataset_id, keys(args))
+        args[:dataset] = fetch_dataset(string(args[:dataset_id]))
+    end
+    if in(:dataset_ids, keys(args))
+        args[:datasets] = fetch_dataset.(map(string, args[:dataset_ids]))
+    end
+    if in(:model_config_ids, keys(args))
+        args[:models] = fetch_model.(map(string, args[:model_ids]))
+    end
+    if in(:timespan, keys(args)) && !isa(args[:timespan], AbstractArray)
+        span = args[:timespan]
+        args[:timespan] = normalize_tspan(span["start_epoch"],span["end_epoch"],span["tstep_seconds"])
     end
     args
 end
@@ -45,8 +60,8 @@ end
 Generate a `prepare_input` function that is already contextualized    
 """
 function prepare_input(context)
-    function contextualized_prepare_input(req::Request)
-        prepare_input(req; context...)
+    function contextualized_prepare_input(args)
+        prepare_input(args; context...)
     end
 end
 
@@ -58,8 +73,11 @@ Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned
 function prepare_output(dataframe::DataFrame; context...)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
-    rename!(dataframe, "timestamp" => "timestep")
-    if !settings["ENABLE_REMOTE_DATA_HANDLING"]
+    if !isa(context[:raw_args], AbstractArray)
+        scale_step(step) = get_step(context[:raw_args][:timespan]["start_epoch"], context[:raw_args][:timespan]["tstep_seconds"], step)
+        dataframe.timestamp = map(scale_step, dataframe.timestamp)
+    end
+    if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
         io = IOBuffer()
         # TODO(five): Write to remote server
         CSV.write(io, dataframe)
@@ -70,7 +88,7 @@ function prepare_output(dataframe::DataFrame; context...)
 end
 
 """
-Coerces NaN values to nothing for each parameter.    
+Coerces NaN values to nothing for each parameter   
 """
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value

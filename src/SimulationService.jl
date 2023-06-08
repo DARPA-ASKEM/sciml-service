@@ -24,10 +24,9 @@ Print out settings
 """
 function health_check()
     tds_url = settings["TDS_URL"]
-    enable_remote = settings["ENABLE_REMOTE_DATA_HANDLING"]
     mq_route = settings["RABBITMQ_ROUTE"]
 
-    return "Simulation-service. TDS_URL=$tds_url, RABBITMQ_ROUTE=$mq_route, ENABLE_REMOTE_DATA_HANDLING=$enable_remote"
+    return "Simulation-service. TDS_URL=$tds_url, RABBITMQ_ROUTE=$mq_route"
 end
 
 
@@ -36,7 +35,7 @@ Specify endpoint to function mappings
 """
 function register!()
     @get "/" health_check
-    @get "/{element}/{id}" retrieve_job
+    @get "/{element}/{uuid}" retrieve_job
     @post "/{operation}" make_deterministic_run
 
     info = Dict("title" => "Simulation Service", "version" => "0.6.0")
