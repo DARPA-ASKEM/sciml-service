@@ -27,7 +27,9 @@ function simulate(; model::AbstractPetriNet,
     context,
     callback = (t, u, integrator) -> Dict(:t => t, :u => u, :integrator => integrator)
 )::DataFrame
-    solve_callback = (t, u, integrator) -> context.interactivity_hook(callback(t, u, integrator))
+    solve_callback = isnothing(context) ?
+        (t, u, integrator) -> nothing :
+        (t, u, integrator) -> context.interactivity_hook(callback(t, u, integrator))
     sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1,
         callback = DiffEqCallbacks.FunctionCallingCallback(solve_callback))
     DataFrame(sol)
