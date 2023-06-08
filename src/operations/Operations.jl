@@ -5,6 +5,7 @@ module Operations
 
 import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
 import DataFrames: DataFrame
+import DiffEqCallbacks: DiffEqCallbacks
 import DifferentialEquations: solve
 import ModelingToolkit: remake
 import Symbolics: Num
@@ -17,22 +18,25 @@ include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_dat
 export simulate, calibrate
 
 """
-Simulate a scenario from a PetriNet    
+Simulate a scenario from a PetriNet
 """
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     tspan=(0.0, 100.0)::Tuple{Float64,Float64},
-    context
+    context,
+    callback = (t,u,integrator) -> Dict(:t => t, :u => u, :integrator => integrator)
 )::DataFrame
-    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
+    solve_callback = (t, u, integrator) -> context.interactivity_hook(callback(t, u, integrator))
+    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1,
+        callback = DiffEqCallbacks.FunctionCallingCallback(solve_callback))
     DataFrame(sol)
 end
 
 "
 for custom loss functions, we probably just allow an enum of functions defined in EMA. (todo)
 
-    datafit is exported in EMA 
+    datafit is exported in EMA
 "
 function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
@@ -50,6 +54,7 @@ function calibrate(; model::AbstractPetriNet,
     ks, vs = unzip(collect(p))
     p = Num.(ks) .=> vs
     data = symbolize_args(data, states(sys))
+    # Callback options not yet exposed in EasyModelAnalysis (https://github.com/SciML/EasyModelAnalysis.jl/issues/158)
     fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
     @info fitp
     # DataFrame(fitp)
@@ -73,4 +78,4 @@ function _global_datafit(; model::LabelledPetriNet,
     DataFrame(fitp)
 end
 
-end # module Operations 
+end # module Operations
