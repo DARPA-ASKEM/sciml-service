@@ -8,10 +8,7 @@ import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
 import UUIDs: UUID
-using AWS
-include("./MinIO.jl"); using .MinIO
 include("../Settings.jl"); import .Settings: settings
-@service S3
 
 export fetch_dataset, fetch_model, update_simulation,  upload
 
