@@ -23,15 +23,15 @@ Simulate a scenario from a PetriNet
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
-    tspan=(0.0, 100.0)::Tuple{Float64,Float64},
+    tspan::Tuple{Float64,Float64} = (0.0, 100.0),
     context,
-    callback = (t, u, integrator) -> Dict(:t => t, :u => u, :integrator => integrator)
 )::DataFrame
-    solve_callback = isnothing(context) ?
-        (t, u, integrator) -> nothing :
-        (t, u, integrator) -> context.interactivity_hook(callback(t, u, integrator))
-    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1,
-        callback = DiffEqCallbacks.FunctionCallingCallback(solve_callback))
+    callback = isnothing(context) ?
+        (args...) -> nothing :
+        DiffEqCallbacks.FunctionCallingCallback(
+            (t, u, integrator) -> context.interactivity_hook(Dict(:job_id => context.job_id, :params => u))
+        )
+    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1, callback)
     DataFrame(sol)
 end
 
