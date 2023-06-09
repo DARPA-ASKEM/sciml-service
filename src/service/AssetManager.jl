@@ -13,7 +13,7 @@ include("./MinIO.jl"); using .MinIO
 include("../Settings.jl"); import .Settings: settings
 @service S3
 
-export fetch_dataset, fetch_model, upload
+export fetch_dataset, fetch_model, update_simulation,  upload
 
 """
 Return model JSON as string from TDS by ID
@@ -38,36 +38,49 @@ end
 """
 Report the job as completed    
 """
-function report_completed(job_id::Int64)
+function update_simulation(job_id::Int64, updated_fields::Dict{Symbol})
     uuid = UUID(job_id)
-    response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"])
-    body = response.body |> JSON.read ∘ String
-    body[:status] = "complete"
-    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=body)
+    response = nothing
+    remaining_retries = 10 # TODO(five)??: Set this with environment variable
+    while remaining_retries != 0 
+        remaining_retries -= 1
+        sleep(2)
+        try
+            response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"])
+            break
+        catch exception
+            if isa(exception,HTTP.Exceptions.StatusError) && exception.status == 404
+                response = nothing
+            else
+                throw(exception)
+            end
+        end
+    end
+    if isnothing(response)
+            throw("Job cannot finish because it does not exist in TDS")
+    end
+    body = response.body |> Dict ∘ JSON.read ∘ String
+    for field in updated_fields
+        body[field.first] = field.second
+    end
+    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=JSON.write(body))
 end
 
 """
 Upload a CSV to S3/MinIO
 """
-function upload(output::DataFrame, job_id)
+function upload(output::DataFrame, job_id, name="result")
+    uuid = UUID(job_id)
+    response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.csv", ["Content-Type" => "application/json"])
     # TODO(five): Stream so there isn't duplication
     CONTENT_TYPE = "text/csv"
     io = IOBuffer()
     CSV.write(io, output)
     seekstart(io)
-    params = Dict(
-        "body" => take!(io),
-        "content-type" => CONTENT_TYPE
-    )
-    
-    handle = "$job_id.csv"
-
-    # TODO(five): Call once
-    AWS.global_aws_config(config)
-
-    S3.put_object(settings["BUCKET"], handle, params)
-    
-    return Dict("data_path" => handle)
+    url = JSON.read(response.body)[:url]
+    HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
+    update_simulation(job_id, Dict(:status => "complete", :result_files => [url]))
+    "uploaded"
 end
 
 end # module AssetManager

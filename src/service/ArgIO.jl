@@ -9,7 +9,7 @@ import CSV
 import HTTP: Request
 
 include("../Settings.jl"); import .Settings: settings
-include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, upload
+include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, update_simulation, upload
 
 export prepare_input, prepare_output
 
@@ -37,6 +37,7 @@ Transform requests into arguments to be used by operation
 Optionally, IDs are hydrated with the corresponding entity from TDS.
 """
 function prepare_input(args; context...)
+    update_simulation(context[:job_id], Dict([:status=>"running"]))
     if in(:model_config_id, keys(args))
         args[:model] = fetch_model(string(args[:model_config_id]))
     end
@@ -92,6 +93,12 @@ Coerces NaN values to nothing for each parameter
 """
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
+
+    if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
+        nothing
+    else
+        update_simulation(context[:job_id], Dict([:status => "complete"]))
+    end
     Dict(key => nan_to_nothing(value) for (key, value) in params)
 end
 
