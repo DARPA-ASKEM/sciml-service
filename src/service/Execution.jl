@@ -21,7 +21,7 @@ SCHEDULER_TO_API_STATUS_MAP = Dict(
     JobSchedulers.RUNNING => :running,
     JobSchedulers.DONE => :complete,
     JobSchedulers.FAILED => :error,
-    JobSchedulers.CANCELLED => :error,
+    JobSchedulers.CANCELLED => :cancelled,
 )
 
 """

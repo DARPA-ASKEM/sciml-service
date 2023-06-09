@@ -7,6 +7,7 @@ import DataFrames: DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
+import UUIDs: UUID
 using AWS
 include("./MinIO.jl"); using .MinIO
 include("../Settings.jl"); import .Settings: settings
@@ -32,6 +33,17 @@ function fetch_dataset(dataset_id::String)
     Downloads.download(url, io)
     seekstart(io)
     CSV.read(io, DataFrame)
+end
+
+"""
+Report the job as completed    
+"""
+function report_completed(job_id::Int64)
+    uuid = UUID(job_id)
+    response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"])
+    body = response.body |> JSON.read ∘ String
+    body[:status] = "complete"
+    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=body)
 end
 
 """
