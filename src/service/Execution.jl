@@ -10,6 +10,7 @@ import JobSchedulers: submit!, job_query, result, generate_id, Job, JobScheduler
 import UUIDs: UUID
 
 include("../contracts/Interface.jl"); import .Interface: get_operation, use_operation, Context
+include("./AssetManager.jl"); import .AssetManager: update_simulation
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
 include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
 include("../Settings.jl"); import .Settings: settings
@@ -28,7 +29,14 @@ SCHEDULER_TO_API_STATUS_MAP = Dict(
 Generate the task to run with the correct context    
 """
 function contextualize_prog(context)
-    prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
+    try
+        prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
+    catch exception
+        if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
+            update_simulation(context[:job_id], Dict([:status=>"error"]))
+        end
+        throw(exception)
+    end
 end
 
 """

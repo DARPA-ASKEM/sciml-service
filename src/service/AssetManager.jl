@@ -70,12 +70,24 @@ function upload(output::DataFrame, job_id, name="result")
     uuid = UUID(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.csv", ["Content-Type" => "application/json"])
     # TODO(five): Stream so there isn't duplication
-    CONTENT_TYPE = "text/csv"
     io = IOBuffer()
     CSV.write(io, output)
     seekstart(io)
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
+    update_simulation(job_id, Dict(:status => "complete", :result_files => [url]))
+    "uploaded"
+end
+
+
+"""
+Upload a JSON to S3/MinIO
+"""
+function upload(output::Dict, job_id, name="result")
+    uuid = UUID(job_id)
+    response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
+    url = JSON.read(response.body)[:url]
+    HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
     update_simulation(job_id, Dict(:status => "complete", :result_files => [url]))
     "uploaded"
 end

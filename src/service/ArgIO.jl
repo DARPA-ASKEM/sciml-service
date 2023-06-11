@@ -37,7 +37,9 @@ Transform requests into arguments to be used by operation
 Optionally, IDs are hydrated with the corresponding entity from TDS.
 """
 function prepare_input(args; context...)
-    update_simulation(context[:job_id], Dict([:status=>"running"]))
+    if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
+        update_simulation(context[:job_id], Dict([:status=>"running"]))
+    end
     if in(:model_config_id, keys(args))
         args[:model] = fetch_model(string(args[:model_config_id]))
     end
@@ -93,13 +95,11 @@ Coerces NaN values to nothing for each parameter
 """
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
+    fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
 
     if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
-        nothing
-    else
-        update_simulation(context[:job_id], Dict([:status => "complete"]))
+        return upload(fixed_params, params, context[:job_id])
     end
-    Dict(key => nan_to_nothing(value) for (key, value) in params)
 end
 
 """
