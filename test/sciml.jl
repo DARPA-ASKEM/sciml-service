@@ -38,7 +38,8 @@ df2 = SimulationService.Service.Execution.Interface.get_operation(:simulate)(; n
 
 timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
-fit_args = (; model=petri, params, initials, dataset=df, timesteps_column="timestamp", feature_mappings=Dict("Susceptible(t)"=>"Susceptible"))
+rename!(df, Dict("Susceptible(t)" => "Susceptible", "timestamp" => "timestep"))
+fit_args = (; model=petri, params, initials, dataset=df[:, ["timestep", "Susceptible"]])
 fit_body = Dict(pairs(fit_args))
 fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
