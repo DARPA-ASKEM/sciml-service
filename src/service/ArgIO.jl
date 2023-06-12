@@ -79,6 +79,7 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="resu
     end
 end
 
+
 """
 Coerces NaN values to nothing for each parameter   
 """
@@ -91,6 +92,7 @@ function prepare_output(results::AbstractArray; context...)
             end
         end
         update_simulation(context[:job_id], Dict([:result_files => urls]))
+
     end
 end
 
