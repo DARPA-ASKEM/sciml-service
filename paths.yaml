@@ -21,10 +21,6 @@
                 items:
                   type: integer
                 example: [0, 90]
-              num_samples:
-                description: number of samples for a CIEMSS simulation
-                type: integer
-                example: 100
               extra:
                 description: optional extra system specific arguments for advanced use cases
                 type: object
@@ -63,18 +59,20 @@
               model_config_id:
                 type: string
                 example: "c1cd941a-047d-11ee-be56"
-              dataset_id:
-                type: string
-                example: "cd339570-047d-11ee-be56"
+              dataset:
+                type: object
+                properties:
+                  id: 
+                    type: string
+                    example: "cd339570-047d-11ee-be55"
+                  filename:
+                    type: string
+                    example: "dataset.csv"
               timespan:
                 type: array
                 items:
                   type: integer
                 example: [0, 90]
-              num_samples:
-                description: number of samples for a CIEMSS simulation
-                type: integer
-                example: 100  
               extra:
                 description: optional extra system specific arguments for advanced use cases
                 type: object
@@ -118,10 +116,6 @@
                 items:
                   type: integer
                 example: [0, 90]
-              num_samples:
-                description: number of samples for a CIEMSS simulation
-                type: integer
-                example: 100
               extra:
                 description: optional extra system specific arguments for advanced use cases
                 type: object                   

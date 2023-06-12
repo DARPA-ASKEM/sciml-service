@@ -31,9 +31,9 @@ end
 """
 Return csv from TDS by ID
 """
-function fetch_dataset(dataset_id::String)
+function fetch_dataset(dataset_id::String, filename::String)
     # TODO(five): Select name dynamicially
-    url = "$(settings["TDS_URL"])/datasets/$dataset_id/download-url?filename=dataset.csv"
+    url = "$(settings["TDS_URL"])/datasets/$dataset_id/download-url?filename=$filename"
     response = HTTP.get(url, ["Content-Type" => "application/json"])
     body = response.body |> JSON.read ∘ String
     io = IOBuffer()

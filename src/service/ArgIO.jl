@@ -7,6 +7,7 @@ import Symbolics
 import DataFrames: rename!, transform!, DataFrame, ByRow
 import CSV
 import HTTP: Request
+import JSON3 as JSON
 
 include("../Settings.jl"); import .Settings: settings
 include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, update_simulation, upload
@@ -24,19 +25,21 @@ function prepare_input(args; context...)
         update_simulation(context[:job_id], Dict([:status=>"running", :start_time => time()]))
     end
     if in(:model_config_id, keys(args))
-        args[:model] = fetch_model(string(args[:model_config_id]))
+        args[:model] = fetch_model(args[:model_config_id])
     end
-    if in(:dataset_id, keys(args))
-        args[:dataset] = fetch_dataset(string(args[:dataset_id]))
-    end
-    if in(:dataset_ids, keys(args))
-        args[:datasets] = fetch_dataset.(map(string, args[:dataset_ids]))
+    if in(:dataset, keys(args)) && !isa(args[:dataset], String)
+        args[:dataset] = fetch_dataset(args[:dataset]["id"], args[:dataset]["filename"])
     end
     if in(:model_config_ids, keys(args))
         args[:models] = fetch_model.(map(string, args[:model_ids]))
     end
     if !in(:timespan, keys(args))
         args[:timespan] = nothing
+    end
+    if in(:extra, keys(args))
+        for (key, value) in Dict(args[:extra]) 
+            args[Symbol(key)] = value
+        end
     end
     args
 end
