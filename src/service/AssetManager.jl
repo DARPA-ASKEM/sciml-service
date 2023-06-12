@@ -76,7 +76,7 @@ end
 """
 Upload a CSV to S3/MinIO
 """
-function upload(output::DataFrame, job_id, name="result")
+function upload(output::DataFrame, job_id; name="result")
     uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.csv", ["Content-Type" => "application/json"])
     # TODO(five): Stream so there isn't duplication
@@ -85,8 +85,9 @@ function upload(output::DataFrame, job_id, name="result")
     seekstart(io)
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
+    bare_url = split(url, "?")[1]
     update_simulation(job_id, Dict(:status => "complete", :result_files => [split(url, "?")[1]], :completed_time => time()))
-    "uploaded"
+    bare_url
 end
 
 
@@ -98,8 +99,9 @@ function upload(output::Dict, job_id; name="result")
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
-    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(url, "?")[1]], :completed_time => time()))
-    "uploaded"
+    bare_url = split(url, "?")[1]
+    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(bare_url, "?")[1]], :completed_time => time()))
+    bare_url
 end
 
 end # module AssetManager
