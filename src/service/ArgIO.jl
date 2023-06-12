@@ -61,7 +61,7 @@ function prepare_output(dataframe::DataFrame; context...)
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id]; name="$(context[:raw_args][:operation])-results.csv")
+        return upload(dataframe, context[:job_id]; name="$(context[:operation])-results.csv")
     end
 end
 
@@ -73,7 +73,7 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; context...
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
 
     if !(in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"])
-        return upload(fixed_params, context[:job_id]; name="$(context[:raw_args][:operation])-results.csv")
+        return upload(fixed_params, context[:job_id]; name="$(context[:operation])-results.csv")
     end
 end
 

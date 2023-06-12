@@ -93,7 +93,7 @@ end
 """
 Upload a JSON to S3/MinIO
 """
-function upload(output::Dict, job_id, name="result")
+function upload(output::Dict, job_id; name="result")
     uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
