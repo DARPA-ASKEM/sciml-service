@@ -14,7 +14,7 @@ import EasyModelAnalysis
 include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_data
 
 # NOTE: Export symbols here are automatically made available to POSTs on `/{name}`)
-export simulate, calibrate, ensemble
+export simulate, calibrate_plain, calibrate, ensemble
 
 """
 Simulate a scenario from a PetriNet    
@@ -29,12 +29,38 @@ function simulate(; model::AbstractPetriNet,
     DataFrame(sol)
 end
 
+"""
+Calibrate + Simulate
+"""
+function calibrate(; model::AbstractPetriNet, # TODO(five): Remove from exports and rename
+    params::Dict{String,Float64},
+    initials::Dict{String,Float64},
+    dataset::DataFrame,
+    feature_mappings::Dict{String, String},
+    timesteps_column::String = "timestamp",
+    timespan::Union{Nothing, Tuple{Float64, Float64}} = nothing,
+    context,
+)
+    calibrated_params = calibrate_plain(;model=model, params=params, initials=initials, dataset=dataset, feature_mappings=feature_mappings, timesteps_column=timesteps_column, context=context)
+    if in(NaN, values(calibrated_params)) throw("NaN adjustment") end
+    adjusted_params = Dict(key.val => value for (key,value) in calibrated_params)
+
+    timesteps, _ = select_data(dataset, feature_mappings, timesteps_column)
+    [
+        calibrated_params,
+        simulate(;model=model, params=params, initials=initials, timespan=(Float64(timesteps[1]), Float64(timesteps[end])), context),
+        !isnothing(timespan) ? simulate(;model=model, params=params, initials=initials, timespan=timespan, context) : nothing,
+    ]
+
+end
+
+
 "
 for custom loss functions, we probably just allow an enum of functions defined in EMA. (todo)
 
     datafit is exported in EMA 
 "
-function calibrate(; model::AbstractPetriNet,
+function calibrate_plain(; model::AbstractPetriNet, # TODO(five): Remove from exports and rename
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,

@@ -26,12 +26,17 @@ Transform unstructured payload into ACSet
 coerce_model(val) = parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val)
 
 """
+Coerce timespan
+"""
+coerce_timespan(val) = !isnothing(val) ? Tuple{Float64,Float64}(val) : nothing
+
+"""
 Inputs converted from payload to arguments expanded in operations.    
 """
 conversions_for_valid_inputs = Dict{Symbol,Function}(
     :model => coerce_model,
     :models => val -> coerce_model.(val),
-    :timespan => (val) -> Tuple{Float64,Float64}(val),
+    :timespan => coerce_timespan,
     :params => (val) -> Dict{String,Float64}(val),
     :initials => (val) -> Dict{String,Float64}(val),
     :dataset => coerce_dataset,

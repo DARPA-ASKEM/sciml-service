@@ -44,7 +44,7 @@ fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
-fitp = SimulationService.Service.Execution.Interface.get_operation(:calibrate)(; fit_args..., context=nothing)
+fitp = SimulationService.Service.Execution.Interface.get_operation(:calibrate_plain)(; fit_args..., context=nothing)
 prob = SimulationService.Service.Execution.Interface.Operations.Utils.to_prob(petri, params, initials, extrema(timesteps))
 sys = prob.f.sys
 

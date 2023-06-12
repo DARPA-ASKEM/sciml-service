@@ -32,7 +32,7 @@ function contextualize_prog(context)
     try
         prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
     catch exception
-        if !(in("upload", keys(context[:raw_args][:extra])) && context[:raw_args][:extra]["upload"])
+        if settings["ENABLE_TDS"]
             update_simulation(context[:job_id], Dict([:status=>"error"]))
         end
         throw(exception)

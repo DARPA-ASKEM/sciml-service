@@ -20,7 +20,7 @@ Transform requests into arguments to be used by operation
 Optionally, IDs are hydrated with the corresponding entity from TDS.
 """
 function prepare_input(args; context...)
-    if !(in("upload", keys(context[:raw_args][:extra])) && context[:raw_args][:extra]["upload"])
+    if settings["ENABLE_TDS"]
         update_simulation(context[:job_id], Dict([:status=>"running", :start_time => time()]))
     end
     if in(:model_config_id, keys(args))
@@ -34,6 +34,9 @@ function prepare_input(args; context...)
     end
     if in(:model_config_ids, keys(args))
         args[:models] = fetch_model.(map(string, args[:model_ids]))
+    end
+    if !in(:timespan, keys(args))
+        args[:timespan] = nothing
     end
     args
 end
@@ -52,28 +55,43 @@ Normalize the header of the resulting dataframe and return a CSV
 
 Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned.    
 """
-function prepare_output(dataframe::DataFrame; context...)
+function prepare_output(dataframe::DataFrame; name="result", context...)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
-    if in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"]
+    if !settings["ENABLE_TDS"]
         io = IOBuffer()
         # TODO(five): Write to remote server
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id])
+        return upload(dataframe, context[:job_id]; name=name)
     end
 end
 
 """
 Coerces NaN values to nothing for each parameter   
 """
-function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; context...)
+function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="result", context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
+    if settings["ENABLE_TDS"]
+        return upload(fixed_params, context[:job_id]; name = name)
+    end
+end
 
-    if !(in("upload", keys(context[:raw_args][:extra])) && !context[:raw_args][:extra]["upload"])
-        return upload(fixed_params, context[:job_id])
+
+"""
+Coerces NaN values to nothing for each parameter   
+"""
+function prepare_output(results::AbstractArray; context...)
+    if settings["ENABLE_TDS"]
+        urls = []
+        for result in results
+            if !isnothing(result)
+                append!(urls, [prepare_output(result; context..., name="$(length(urls))")])
+            end
+        end
+        update_simulation(context[:job_id], Dict([:result_files => urls]))
     end
 end
 
