@@ -13,6 +13,13 @@ include("../Settings.jl"); import .Settings: settings
 export fetch_dataset, fetch_model, update_simulation, upload
 
 """
+Generate UUID with prefix    
+"""
+function gen_uuid(job_id)
+    "sciml-" * string(UUID(job_id))
+end
+
+"""
 Return model JSON as string from TDS by ID
 """
 function fetch_model(model_id::String)
@@ -39,7 +46,7 @@ end
 Report the job as completed    
 """
 function update_simulation(job_id::Int64, updated_fields::Dict{Symbol})
-    uuid = UUID(job_id)
+    uuid = gen_uuid(job_id)
     response = nothing
     remaining_retries = 10 # TODO(five)??: Set this with environment variable
     while remaining_retries != 0 
@@ -70,7 +77,7 @@ end
 Upload a CSV to S3/MinIO
 """
 function upload(output::DataFrame, job_id; name="result")
-    uuid = UUID(job_id)
+    uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.csv", ["Content-Type" => "application/json"])
     # TODO(five): Stream so there isn't duplication
     io = IOBuffer()
@@ -88,7 +95,7 @@ end
 Upload a JSON to S3/MinIO
 """
 function upload(output::Dict, job_id; name="result")
-    uuid = UUID(job_id)
+    uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))

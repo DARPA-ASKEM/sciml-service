@@ -65,10 +65,11 @@ function make_deterministic_run(req::Request, operation::String)
     sim_run = Job(@task(prog(args)))
     sim_run.id = context.job_id
     submit!(sim_run)
+    uuid = "sciml-" * string(UUID(sim_run.id))
     Response(
         201,
         ["Content-Type" => "application/json; charset=utf-8"],
-        body=JSON.write("simulation_id" => UUID(sim_run.id))
+        body=JSON.write("simulation_id" => uuid)
     )
 end
 
@@ -77,7 +78,7 @@ end
 Get status of sim
 """
 function retrieve_job(_, uuid::String, element::String)
-    id = Int64(UUID(uuid).value)
+    id = Int64(UUID(split(uuid, "sciml-")[2]).value)
     job = job_query(id)
     if isnothing(job)
         return Response(
