@@ -17,21 +17,10 @@
                 type: string
                 example: "ba8da8d4-047d-11ee-be56"
               timespan:
-                type: object
-                properties:
-                  start_epoch:
-                    type: integer
-                    example: 1672531200
-                  end_epoch:
-                    type: integer
-                    example: 1703980800
-                  tstep_seconds:
-                    type: integer
-                    example: 86400
-                required:
-                  - start_epoch
-                  - end_epoch
-                  - tstep_seconds
+                type: array
+                items:
+                  type: integer
+                example: [0, 90]
               num_samples:
                 description: number of samples for a CIEMSS simulation
                 type: integer
@@ -78,21 +67,10 @@
                 type: string
                 example: "cd339570-047d-11ee-be56"
               timespan:
-                type: object
-                properties:
-                  start_epoch:
-                    type: integer
-                    example: 1672531200
-                  end_epoch:
-                    type: integer
-                    example: 1703980800
-                  tstep_seconds:
-                    type: integer
-                    example: 86400
-                required:
-                  - start_epoch
-                  - end_epoch
-                  - tstep_seconds
+                type: array
+                items:
+                  type: integer
+                example: [0, 90]
               num_samples:
                 description: number of samples for a CIEMSS simulation
                 type: integer
@@ -136,21 +114,10 @@
                   type: string
                 example: ["ba8da8d4-047d-11ee-be56", "c1cd941a-047d-11ee-be56", "c4b9f88a-047d-11ee-be56"]
               timespan:
-                type: object
-                properties:
-                  start_epoch:
-                    type: integer
-                    example: 1672531200
-                  end_epoch:
-                    type: integer
-                    example: 1703980800
-                  tstep_seconds:
-                    type: integer
-                    example: 86400                      
-                required:
-                  - start_epoch
-                  - end_epoch
-                  - tstep_seconds
+                type: array
+                items:
+                  type: integer
+                example: [0, 90]
               num_samples:
                 description: number of samples for a CIEMSS simulation
                 type: integer
