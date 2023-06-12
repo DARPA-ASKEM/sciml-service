@@ -64,7 +64,7 @@ function prepare_output(dataframe::DataFrame; name="result", context...)
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id]; name="$(context[:raw_args][:operation])-results.csv")
+        return upload(dataframe, context[:job_id]; name="$(context[:operation])-results.csv")
     end
 end
 
@@ -92,7 +92,6 @@ function prepare_output(results::AbstractArray; context...)
             end
         end
         update_simulation(context[:job_id], Dict([:result_files => urls]))
-
     end
 end
 
