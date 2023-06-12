@@ -40,8 +40,6 @@ conversions_for_valid_inputs = Dict{Symbol,Function}(
     :params => (val) -> Dict{String,Float64}(val),
     :initials => (val) -> Dict{String,Float64}(val),
     :dataset => coerce_dataset,
-    :feature_mappings => (val) -> Dict{String, String}(val),
-    :timesteps_column => (val) -> String(val)
 )
 
 end # module ProblemInputs
