@@ -10,24 +10,27 @@ import JSON3 as JSON
 import UUIDs: UUID
 include("../Settings.jl"); import .Settings: settings
 
-export fetch_dataset, fetch_model, update_simulation,  upload
+export fetch_dataset, fetch_model, update_simulation, upload
 
 """
 Return model JSON as string from TDS by ID
 """
 function fetch_model(model_id::String)
-    response = HTTP.get("$(settings["TDS_URL"])/models/$model_id", ["Content-Type" => "application/json"])
+    response = HTTP.get("$(settings["TDS_URL"])/model_configurations/$model_id", ["Content-Type" => "application/json"])
     body = response.body |> JSON.read ∘ String
-    body.content
+    body.configuration
 end
 
 """
 Return csv from TDS by ID
 """
 function fetch_dataset(dataset_id::String)
-    url = "$(settings["TDS_URL"])/datasets/$dataset_id/file"
+    # TODO(five): Select name dynamicially
+    url = "$(settings["TDS_URL"])/datasets/$dataset_id/download-url?filename=dataset.csv"
+    response = HTTP.get(url, ["Content-Type" => "application/json"])
+    body = response.body |> JSON.read ∘ String
     io = IOBuffer()
-    Downloads.download(url, io)
+    Downloads.download(body.url, io)
     seekstart(io)
     CSV.read(io, DataFrame)
 end
@@ -75,7 +78,7 @@ function upload(output::DataFrame, job_id, name="result")
     seekstart(io)
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
-    update_simulation(job_id, Dict(:status => "complete", :result_files => [url]))
+    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(url, "?")[1]], :completed_time => time()))
     "uploaded"
 end
 
@@ -88,7 +91,7 @@ function upload(output::Dict, job_id, name="result")
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
-    update_simulation(job_id, Dict(:status => "complete", :result_files => [url]))
+    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(url, "?")[1]], :completed_time => time()))
     "uploaded"
 end
 
