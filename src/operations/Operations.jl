@@ -38,11 +38,9 @@ function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,
-    feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp",
     context,
 )
-    timesteps, data = select_data(dataset, feature_mappings, timesteps_column)
+    timesteps, data = select_data(dataset)
     prob = to_prob(model, params, initials, extrema(timesteps))
     sys = prob.f.sys
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
