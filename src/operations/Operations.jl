@@ -43,7 +43,7 @@ function calibrate(; model::AbstractPetriNet, # TODO(five): Remove from exports 
     if in(NaN, values(calibrated_params)) throw("NaN adjustment") end
     adjusted_params = Dict(key.val => value for (key,value) in calibrated_params)
 
-    timesteps, _ = select_data(dataset, feature_mappings, timesteps_column)
+    timesteps, _ = select_data(dataset)
     [
         calibrated_params,
         simulate(;model=model, params=params, initials=initials, timespan=(Float64(timesteps[1]), Float64(timesteps[end])), context),
