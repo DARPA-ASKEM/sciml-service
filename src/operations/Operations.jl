@@ -36,12 +36,10 @@ function calibrate(; model::AbstractPetriNet, # TODO(five): Remove from exports 
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,
-    feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp",
     timespan::Union{Nothing, Tuple{Float64, Float64}} = nothing,
     context,
 )
-    calibrated_params = calibrate_plain(;model=model, params=params, initials=initials, dataset=dataset, feature_mappings=feature_mappings, timesteps_column=timesteps_column, context=context)
+    calibrated_params = calibrate_plain(;model=model, params=params, initials=initials, dataset=dataset, context=context)
     if in(NaN, values(calibrated_params)) throw("NaN adjustment") end
     adjusted_params = Dict(key.val => value for (key,value) in calibrated_params)
 
