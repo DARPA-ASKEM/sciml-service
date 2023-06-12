@@ -64,7 +64,7 @@ function prepare_output(dataframe::DataFrame; name="result", context...)
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id]; name="$(context[:operation])-results.csv")
+        return upload(dataframe, context[:job_id]; name="$name-$(context[:operation])-results")
     end
 end
 
@@ -75,7 +75,7 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="resu
     nan_to_nothing(value) = isnan(value) ? nothing : value
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
     if settings["ENABLE_TDS"]
-        return upload(fixed_params, context[:job_id]; name = name)
+        return upload(fixed_params, context[:job_id]; name = "$name-$(context[:operation])-results")
     end
 end
 
