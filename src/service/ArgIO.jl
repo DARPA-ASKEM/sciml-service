@@ -64,7 +64,7 @@ function prepare_output(dataframe::DataFrame; name="result", context...)
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id]; name=name)
+        return upload(dataframe, context[:job_id]; name="$(context[:raw_args][:operation])-results.csv")
     end
 end
 
@@ -78,7 +78,6 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="resu
         return upload(fixed_params, context[:job_id]; name = name)
     end
 end
-
 
 """
 Coerces NaN values to nothing for each parameter   
