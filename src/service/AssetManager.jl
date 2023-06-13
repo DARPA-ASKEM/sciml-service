@@ -86,7 +86,6 @@ function upload(output::DataFrame, job_id; name="result")
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
     bare_url = split(url, "?")[1]
-    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(url, "?")[1]], :completed_time => time()))
     bare_url
 end
 
@@ -100,7 +99,6 @@ function upload(output::Dict, job_id; name="result")
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
     bare_url = split(url, "?")[1]
-    update_simulation(job_id, Dict(:status => "complete", :result_files => [split(bare_url, "?")[1]], :completed_time => time()))
     bare_url
 end
 

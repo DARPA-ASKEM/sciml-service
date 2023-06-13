@@ -58,7 +58,7 @@ Normalize the header of the resulting dataframe and return a CSV
 
 Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned.    
 """
-function prepare_output(dataframe::DataFrame; name="result", context...)
+function prepare_output(dataframe::DataFrame; name="0", context...)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
     if !settings["ENABLE_TDS"]
@@ -67,18 +67,18 @@ function prepare_output(dataframe::DataFrame; name="result", context...)
         CSV.write(io, dataframe)
         return String(take!(io))
     else
-        return upload(dataframe, context[:job_id]; name="$name-$(context[:operation])-results")
+        return upload(dataframe, context[:job_id]; name=name)
     end
 end
 
 """
 Coerces NaN values to nothing for each parameter   
 """
-function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="result", context...)
+function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
     if settings["ENABLE_TDS"]
-        return upload(fixed_params, context[:job_id]; name = "$name-$(context[:operation])-results")
+        return upload(fixed_params, context[:job_id]; name=name)
     end
 end
 
@@ -86,15 +86,13 @@ end
 """
 Coerces NaN values to nothing for each parameter   
 """
-function prepare_output(results::AbstractArray; context...)
+function prepare_output(results::Dict{String}; context...)
     if settings["ENABLE_TDS"]
         urls = []
-        for result in results
-            if !isnothing(result)
-                append!(urls, [prepare_output(result; context..., name="$(length(urls))")])
-            end
+        for (name, value) in results
+            append!(urls, [prepare_output(value; context..., name=name)])
         end
-        update_simulation(context[:job_id], Dict([:result_files => urls]))
+        update_simulation(context[:job_id], Dict([:status => "complete", :result_files => urls, :completed_time => time()]))
     end
 end
 
