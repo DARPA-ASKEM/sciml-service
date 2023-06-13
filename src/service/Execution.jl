@@ -9,7 +9,7 @@ import Oxygen: json
 import JobSchedulers: submit!, job_query, result, generate_id, Job, JobSchedulers
 import UUIDs: UUID
 
-include("../contracts/Interface.jl"); import .Interface: get_operation, use_operation, Context
+include("../contracts/Interface.jl"); import .Interface: available_operations, use_operation, Context
 include("./AssetManager.jl"); import .AssetManager: update_simulation
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
 include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
@@ -29,13 +29,15 @@ SCHEDULER_TO_API_STATUS_MAP = Dict(
 Generate the task to run with the correct context    
 """
 function contextualize_prog(context)
-    try
-        prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context)
-    catch exception
-        if settings["ENABLE_TDS"]
-            update_simulation(context[:job_id], Dict([:status=>"error"]))
+    function prog(args)
+        try
+            (prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context))(args)
+        catch exception
+            if settings["ENABLE_TDS"]
+                update_simulation(context.job_id, Dict([:status=>"error"]))
+            end
+            throw(exception)
         end
-        throw(exception)
     end
 end
 
@@ -44,7 +46,7 @@ Schedule a sim run given an operation
 """
 function make_deterministic_run(req::Request, operation::String)
     # TODO(five): Spawn remote workers and run jobs on them
-    if isnothing(get_operation(operation))
+    if !in(operation, keys(available_operations))
         return Response(
             404,
             ["Content-Type" => "text/plain; charset=utf-8"],
