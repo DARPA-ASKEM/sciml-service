@@ -1,9 +1,5 @@
 {
   "model_config_id": "f20ea672-bfa4-422b-884f-0a4c09356fd0",
-  "dataset": {
-    "id": "2ea2d39f-866f-46f6-beec-972ed2136ed5",
-    "filename": "dataset.csv"
-  },
   "timespan": [101.0, 108.0],
   "extra": {
     "initials": {
