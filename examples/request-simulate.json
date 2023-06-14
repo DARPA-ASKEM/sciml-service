@@ -1,6 +1,6 @@
 {
   "model_config_id": "f20ea672-bfa4-422b-884f-0a4c09356fd0",
-  "timespan": [101.0, 108.0],
+  "timespan": {"start": 0, "end": 90},
   "extra": {
     "initials": {
       "S": 0.49457800495224524,
