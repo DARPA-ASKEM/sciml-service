@@ -24,6 +24,9 @@ function prepare_input(args; context...)
     if settings["ENABLE_TDS"]
         update_simulation(context[:job_id], Dict([:status=>"running", :start_time => time()]))
     end
+    if in(:timespan, keys(args))
+        args[:timespan] = (args[:timespan]["start"], args[:timespan]["end"])
+    end
     if in(:model_config_id, keys(args))
         args[:model] = fetch_model(args[:model_config_id])
     end
