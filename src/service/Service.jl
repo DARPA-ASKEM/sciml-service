@@ -6,6 +6,7 @@ include("../Settings.jl")
 include("./AssetManager.jl")
 include("./ArgIO.jl")
 include("./Queuing.jl")
-@reexport import .ArgIO, .AssetManager, .Queuing
+include("./Execution.jl")
+@reexport using .ArgIO, .AssetManager, .Queuing, .Execution
 
 end # module Service

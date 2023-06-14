@@ -3,7 +3,7 @@ Unexposed helper functions for operations
 """
 module Utils
 
-import DataFrames: DataFrame
+import DataFrames: DataFrame, names
 import ModelingToolkit: ODESystem, ODEProblem
 import Symbolics: getname
 import SymbolicIndexingInterface: states, parameters
@@ -52,12 +52,13 @@ end
 """
 Generate data and timestep list from a dataframe    
 """
-function select_data(dataframe::DataFrame, feature_mappings:: Dict{String, String}, timesteps_column::String)
+function select_data(dataframe::DataFrame)
     data = Dict(
-        to => dataframe[!, from]
-        for (from, to) in feature_mappings 
+        key => dataframe[!, key]
+        for key in names(dataframe) if key != "timestep"
     )
-    dataframe[!, timesteps_column], data
+
+    dataframe[!, "timestep"], data
 end
 
 

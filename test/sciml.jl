@@ -1,4 +1,4 @@
-using SimulationService, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, SimulationService.Interface.Operations
+using SimulationService, AlgebraicPetri, DataFrames, DifferentialEquations, ModelingToolkit, Symbolics, EasyModelAnalysis, Catlab, Catlab.CategoricalAlgebra, JSON3, UnPack, SimulationService.Service.Execution.Interface.Operations
 using CSV, DataFrames, JSONTables
 using ForwardDiff
 
@@ -21,31 +21,32 @@ u0 = string.(snames(petri)) .=> petri[:concentration]
 
 params = Dict(ps)
 initials = Dict(u0)
-tspan = (0.0, 100.0)
+timespan = (0.0, 100.0)
 
-nt = (; model=petri, params, initials, tspan)
+nt = (; model=petri, params, initials, timespan)
 body = Dict(pairs(nt))
 j = JSON3.write(body)
 forecast_fn = _log("forecast.json")
 write(forecast_fn, j)
 
-df = SimulationService.Interface.get_operation(:simulate)(; nt..., context=nothing)
+df = SimulationService.Service.Execution.Interface.Available.get_operation(:simulate)(; nt..., context=nothing)
 @test df isa DataFrame
 
 params["t1"] = 0.1
-nt = (; model = petri, params, initials, tspan)
-df2 = SimulationService.Interface.get_operation(:simulate)(; nt..., context=nothing)
+nt = (; model = petri, params, initials, timespan)
+df2 = SimulationService.Service.Execution.Interface.Available.get_operation(:simulate)(; nt..., context=nothing)
 
 timesteps = df.timestamp
 data = Dict(["Susceptible" => df[:, 2]])
-fit_args = (; model=petri, params, initials, dataset=df, timesteps_column="timestamp", feature_mappings=Dict("Susceptible(t)"=>"Susceptible"))
+rename!(df, Dict("Susceptible(t)" => "Susceptible", "timestamp" => "timestep"))
+fit_args = (; model=petri, params, initials, dataset=df[:, ["timestep", "Susceptible"]])
 fit_body = Dict(pairs(fit_args))
 fit_j = JSON3.write(fit_body)
 calibrate_fn = _log("calibrate.json")
 write(calibrate_fn, fit_j)
 
-fitp = SimulationService.Interface.get_operation(:calibrate)(; fit_args..., context=nothing)
-prob = SimulationService.Interface.Operations.Utils.to_prob(petri, params, initials, extrema(timesteps))
+fitp = SimulationService.Service.Execution.Interface.Available.get_operation(:calibrate)(; fit_args..., context=nothing)
+prob = SimulationService.Service.Execution.Interface.Operations.Utils.to_prob(petri, params, initials, extrema(timesteps))
 sys = prob.f.sys
 
 # example of dloss/dp

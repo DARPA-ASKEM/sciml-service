@@ -13,8 +13,8 @@ import EasyModelAnalysis
 
 include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_data
 
-# NOTE: Export symbols here are automatically made available to the API (`/calls/{name}`)
-export simulate, calibrate
+# NOTE: Operations exposed to the rest of the Simulation Service
+export simulate, calibrate, ensemble
 
 """
 Simulate a scenario from a PetriNet    
@@ -22,10 +22,10 @@ Simulate a scenario from a PetriNet
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
-    tspan=(0.0, 100.0)::Tuple{Float64,Float64},
+    timespan=(0.0, 100.0)::Tuple{Float64,Float64},
     context
 )::DataFrame
-    sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1)
+    sol = solve(to_prob(model, params, initials, timespan); progress = true, progress_steps = 1)
     DataFrame(sol)
 end
 
@@ -38,11 +38,9 @@ function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     dataset::DataFrame,
-    feature_mappings::Dict{String, String},
-    timesteps_column::String = "timestamp",
     context,
 )
-    timesteps, data = select_data(dataset, feature_mappings, timesteps_column)
+    timesteps, data = select_data(dataset)
     prob = to_prob(model, params, initials, extrema(timesteps))
     sys = prob.f.sys
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
@@ -54,6 +52,13 @@ function calibrate(; model::AbstractPetriNet,
     @info fitp
     # DataFrame(fitp)
     fitp
+end
+
+"""
+NOT IMPLEMENTED    
+"""
+function ensemble(; models::AbstractArray{AbstractPetriNet}, timespan=(0.0, 100.0)::Tuple{Float64, Float64})
+    throw("ENSEMBLE IS NOT YET IMPLEMENTED")
 end
 
 "long running functions like global_datafit and sensitivity wrappers will need to be refactored to share callback info incrementally"
