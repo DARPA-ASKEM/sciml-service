@@ -4,7 +4,7 @@
     "id": "2ea2d39f-866f-46f6-beec-972ed2136ed5",
     "filename": "dataset.csv"
   },
-  "timespan": [101.0, 108.0],
+  "timespan": {"start": 101, "end": 190},
   "extra": {
     "initials": {
       "S": 0.49457800495224524,
