@@ -3,7 +3,7 @@ Asset fetching from TDS
 """
 module AssetManager
 
-import DataFrames: DataFrame
+import DataFrames: rename!, DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
 import JSON3 as JSON
@@ -31,7 +31,7 @@ end
 """
 Return csv from TDS by ID
 """
-function fetch_dataset(dataset_id::String, filename::String)
+function fetch_dataset(dataset_id::String, filename::String, mappings::Dict=Dict())
     # TODO(five): Select name dynamicially
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/download-url?filename=$filename"
     response = HTTP.get(url, ["Content-Type" => "application/json"])
@@ -39,7 +39,9 @@ function fetch_dataset(dataset_id::String, filename::String)
     io = IOBuffer()
     Downloads.download(body.url, io)
     seekstart(io)
-    CSV.read(io, DataFrame)
+    dataframe = CSV.read(io, DataFrame)
+    for (from, to) in mappings rename!(dataframe, Symbol(from)=>Symbol(to)) end
+    dataframe
 end
 
 """

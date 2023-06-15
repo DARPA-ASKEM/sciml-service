@@ -75,6 +75,8 @@
                   filename:
                     type: string
                     example: "dataset.csv"
+                  mappings:
+                    type: object
               timespan:
                 type: object
                 properties:
