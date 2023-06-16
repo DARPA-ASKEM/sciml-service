@@ -5,12 +5,14 @@ module Execution
 
 import HTTP: Request, Response
 import JSON3 as JSON
+import Logging: with_logger
+import LoggingExtras: FileLogger
 import Oxygen: json
 import JobSchedulers: submit!, job_query, result, generate_id, Job, JobSchedulers
 import UUIDs: UUID
 
 include("../contracts/Interface.jl"); import .Interface: available_operations, use_operation, Context
-include("./AssetManager.jl"); import .AssetManager: update_simulation
+include("./AssetManager.jl"); import .AssetManager: update_simulation, upload
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
 include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
 include("../Settings.jl"); import .Settings: settings
@@ -30,14 +32,19 @@ Generate the task to run with the correct context
 """
 function contextualize_prog(context)
     function prog(args)
-        try
-            (prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context))(args)
-        catch exception
-            if settings["ENABLE_TDS"]
-                update_simulation(context.job_id, Dict([:status=>"error"]))
+        logging_io = IOBuffer()
+        with_logger(FileLogger(logging_io)) do
+            try
+                (prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context))(args)
+            catch exception
+                if settings["ENABLE_TDS"]
+                    update_simulation(context.job_id, Dict([:status=>"error"]))
+                end
+                throw(exception)
             end
-            throw(exception)
         end
+        seekstart(logging_io)
+        upload(take!(logging_io), context[:job_id], "logs")
     end
 end
 

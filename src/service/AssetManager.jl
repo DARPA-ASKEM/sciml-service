@@ -87,8 +87,7 @@ function upload(output::DataFrame, job_id; name="result")
     seekstart(io)
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
-    bare_url = split(url, "?")[1]
-    bare_url
+    "$name.csv"
 end
 
 
@@ -100,8 +99,18 @@ function upload(output::Dict, job_id; name="result")
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
-    bare_url = split(url, "?")[1]
-    bare_url
+    "$name.json"
+end
+
+
+"""
+Upload a text file to S3/MinIO
+"""
+function upload(output::String, job_id; name="result")
+    uuid = gen_uuid(job_id)
+    response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.txt", ["Content-Type" => "application/json"])
+    HTTP.put(url, ["Content-Type" => "application/json"], body = output)
+    "$name.txt"
 end
 
 end # module AssetManager
