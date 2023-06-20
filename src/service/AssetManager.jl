@@ -47,7 +47,7 @@ end
 """
 Report the job as completed    
 """
-function update_simulation(job_id::Int64, updated_fields::Dict{Symbol})
+function update_simulation(job_id::Int64, updated_fields::Dict{Symbol}; append::Dict{Symbol}=Dict{Symbol,Any}())
     uuid = gen_uuid(job_id)
     response = nothing
     remaining_retries = 10 # TODO(five)??: Set this with environment variable
@@ -71,6 +71,9 @@ function update_simulation(job_id::Int64, updated_fields::Dict{Symbol})
     body = response.body |> Dict ∘ JSON.read ∘ String
     for field in updated_fields
         body[field.first] = field.second
+    end
+    for field in append
+        body[field.first] = vcat(body[field.first], field.second)
     end
     HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=JSON.write(body))
 end
@@ -109,8 +112,18 @@ Upload a text file to S3/MinIO
 function upload(output::String, job_id; name="result")
     uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.txt", ["Content-Type" => "application/json"])
+    url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = output)
     "$name.txt"
 end
+
+
+"""
+Upload bytes as string
+"""
+function upload(output::Vector{UInt8}, job_id; name="result")
+    upload(String(output), job_id; name=name)
+end
+
 
 end # module AssetManager

@@ -5,8 +5,7 @@ module Execution
 
 import HTTP: Request, Response
 import JSON3 as JSON
-import Logging: with_logger
-import LoggingExtras: FileLogger
+import Logging: with_logger, AbstractLogger, BelowMinLevel, Logging
 import Oxygen: json
 import JobSchedulers: submit!, job_query, result, generate_id, Job, JobSchedulers
 import UUIDs: UUID
@@ -28,12 +27,35 @@ SCHEDULER_TO_API_STATUS_MAP = Dict(
 )
 
 """
+Logger for tasks that writes to a buffer    
+"""
+struct TaskLogger <: AbstractLogger
+    buffer::IOBuffer
+    function TaskLogger()
+        new(IOBuffer())
+    end
+end
+
+function Logging.handle_message(logger::TaskLogger, level, message, _module, group, id, file, line; kwargs...)
+    log = "[$level]($_module:$group @ $file:$line): $message\n"
+    write(logger.buffer, log)
+end
+Logging.shouldlog(::TaskLogger, args...) = true
+Logging.min_enabled_level(::TaskLogger) = BelowMinLevel 
+Logging.catch_exceptions(::TaskLogger) = true
+function Main.take!(logger::TaskLogger)
+    seekstart(logger.buffer)
+    take!(logger.buffer)
+end
+
+
+"""
 Generate the task to run with the correct context    
 """
 function contextualize_prog(context)
     function prog(args)
-        logging_io = IOBuffer()
-        with_logger(FileLogger(logging_io)) do
+        logger = TaskLogger()
+        with_logger(logger) do
             try
                 (prepare_output(context) ∘ use_operation(context) ∘ prepare_input(context))(args)
             catch exception
@@ -43,8 +65,8 @@ function contextualize_prog(context)
                 throw(exception)
             end
         end
-        seekstart(logging_io)
-        upload(take!(logging_io), context[:job_id], "logs")
+        filename = upload(take!(logger), context.job_id; name= "logs")
+        update_simulation(context.job_id, Dict{Symbol, Any}();append=Dict(:result_files=>filename))
     end
 end
 
