@@ -3,10 +3,11 @@ User-provided, problem-specific inputs
 """
 module ProblemInputs
 
-import AlgebraicPetri: PropertyLabelledReactionNet, LabelledPetriNet, AbstractPetriNet
+import AlgebraicPetri: PropertyLabelledPetriNet, LabelledPetriNet, AbstractPetriNet
 import Catlab.CategoricalAlgebra: parse_json_acset
 import DataFrames: DataFrame
 import CSV
+import JSON
 
 export conversions_for_valid_inputs
 
@@ -20,10 +21,25 @@ Act as identity since the value is already coerced
 """
 coerce_dataset(val::DataFrame) = val
 
+struct ASKEMModel
+    petri::PropertyLabelledPetriNet
+    json::AbstractDict
+end
+
 """
-Transform unstructured payload into ACSet    
+Transform payload in ASKEM model rep into ACSet
 """
-coerce_model(val) = parse_json_acset(PropertyLabelledReactionNet{Number, Number, Dict}, val)
+function coerce_model(val)
+    parsed = JSON.Parser.parse(val)
+    model = parsed["model"]
+    state_props = Dict(Symbol(s["id"]) => s for s in model["states"])
+    states = [Symbol(s["id"]) for s in model["states"]]
+    transition_props = Dict(Symbol(t["id"]) => t["properties"] for t in model["transitions"])
+    transitions = [Symbol(t["id"]) => (Symbol.(t["input"]) => Symbol.(t["output"])) for t in model["transitions"]]
+
+    petri = PropertyLabelledPetriNet{Dict}(LabelledPetriNet(states, transitions...), state_props, transition_props)
+    ASKEMModel(petri, parsed)
+end
 
 """
 Coerce timespan

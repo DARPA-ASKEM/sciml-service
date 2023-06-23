@@ -7,16 +7,24 @@ import DataFrames: DataFrame, names
 import ModelingToolkit: ODESystem, ODEProblem
 import Symbolics: getname
 import SymbolicIndexingInterface: states, parameters
+import MathML
 
 export to_prob, unzip, symbolize_args, select_data
 
 """
 Transform model representation into a SciML primitive, an ODEProblem
 """
-to_prob(model, params, initials, tspan) = begin
-    sys = ODESystem(model)
-    u0 = symbolize_args(initials, states(sys))
-    p = symbolize_args(params, parameters(sys))
+function to_prob(model, tspan)
+    (; petri, obj) = model
+    initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in obj["semantics"]["ode"]["initials"]]
+    paramnames = [Symbol(x["id"]) for x in obj["semantics"]["ode"]["parameters"]]
+    paramvals = [x["value"] for x in obj["semantics"]["ode"]["parameters"]]
+    ps_syms = [only(@variables $x) for x in paramnames]
+    sym_defs = ps_syms .=> paramvals
+    initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
+
+    sys = ODESystem(petri; defaults = [states(sys) .=> initial_vals; sym_defs])
+
     ODEProblem(sys, u0, tspan, p; saveat=1)
 end
 

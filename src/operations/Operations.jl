@@ -19,13 +19,12 @@ export simulate, calibrate, ensemble
 """
 Simulate a scenario from a PetriNet    
 """
-function simulate(; model::AbstractPetriNet,
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
+function simulate(; model#::ASKEMModel
+                  ,
     timespan=(0.0, 100.0)::Tuple{Float64,Float64},
     context
 )::DataFrame
-    sol = solve(to_prob(model, params, initials, timespan); progress = true, progress_steps = 1)
+    sol = solve(to_prob(model, timespan); progress = true, progress_steps = 1)
     DataFrame(sol)
 end
 
@@ -34,15 +33,15 @@ for custom loss functions, we probably just allow an enum of functions defined i
 
     datafit is exported in EMA 
 "
-function calibrate(; model::AbstractPetriNet,
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
+function calibrate(; model::ASKEMModel#::AbstractPetriNet
+                   ,
     dataset::DataFrame,
     context,
 )
     timesteps, data = select_data(dataset)
-    prob = to_prob(model, params, initials, extrema(timesteps))
+    prob = to_prob(model, extrema(timesteps))
     sys = prob.f.sys
+    # TODO
     p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
     @show p
     ks, vs = unzip(collect(p))
