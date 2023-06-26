@@ -1,11 +1,11 @@
 """
-Unexposed helper functions for operations    
+Unexposed helper functions for operations
 """
 module Utils
 
 import DataFrames: DataFrame, names
 import ModelingToolkit: ODESystem, ODEProblem
-import Symbolics: getname
+import Symbolics: getname, @variables, substitute
 import SymbolicIndexingInterface: states, parameters
 import MathML
 
@@ -29,18 +29,18 @@ function to_prob(model, tspan)
 end
 
 """
-Separate keys and values    
+Separate keys and values
 """
 unzip(d::Dict) = (collect(keys(d)), collect(values(d)))
 
 """
-Unzip a collection of pairs    
+Unzip a collection of pairs
 """
 unzip(ps) = first.(ps), last.(ps)
 
 
 """
-Transform list of args into Symbolics variables     
+Transform list of args into Symbolics variables
 """
 function symbolize_args(incoming_values, sys_vars)
     pairs = collect(incoming_values)
@@ -58,7 +58,7 @@ end
 
 
 """
-Generate data and timestep list from a dataframe    
+Generate data and timestep list from a dataframe
 """
 function select_data(dataframe::DataFrame)
     data = Dict(

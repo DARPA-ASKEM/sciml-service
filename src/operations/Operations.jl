@@ -17,13 +17,10 @@ include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_dat
 export simulate, calibrate, ensemble
 
 """
-Simulate a scenario from a PetriNet    
+Simulate a scenario from a PetriNet
 """
-function simulate(; model#::ASKEMModel
-                  ,
-    timespan=(0.0, 100.0)::Tuple{Float64,Float64},
-    context
-)::DataFrame
+# model::ASKEMModel
+function simulate(; model, timespan::Tuple{Float64,Float64}=(0.0, 100.0), context)::DataFrame
     sol = solve(to_prob(model, timespan); progress = true, progress_steps = 1)
     DataFrame(sol)
 end
@@ -31,13 +28,10 @@ end
 "
 for custom loss functions, we probably just allow an enum of functions defined in EMA. (todo)
 
-    datafit is exported in EMA 
+    datafit is exported in EMA
 "
-function calibrate(; model::ASKEMModel#::AbstractPetriNet
-                   ,
-    dataset::DataFrame,
-    context,
-)
+# model::ASKEMModel
+function calibrate(; model, dataset::DataFrame, context)
     timesteps, data = select_data(dataset)
     prob = to_prob(model, extrema(timesteps))
     sys = prob.f.sys
@@ -54,7 +48,7 @@ function calibrate(; model::ASKEMModel#::AbstractPetriNet
 end
 
 """
-NOT IMPLEMENTED    
+NOT IMPLEMENTED
 """
 function ensemble(; models::AbstractArray{AbstractPetriNet}, timespan=(0.0, 100.0)::Tuple{Float64, Float64})
     throw("ENSEMBLE IS NOT YET IMPLEMENTED")
@@ -77,4 +71,4 @@ function _global_datafit(; model::LabelledPetriNet,
     DataFrame(fitp)
 end
 
-end # module Operations 
+end # module Operations
