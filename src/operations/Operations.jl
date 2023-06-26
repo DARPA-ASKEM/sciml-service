@@ -1,6 +1,4 @@
-"""
-SciML Operation definitions
-"""
+# SciML Operation definitions
 module Operations
 
 import AlgebraicPetri: LabelledPetriNet, AbstractPetriNet
@@ -17,29 +15,31 @@ include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_dat
 # NOTE: Export symbols here are automatically made available to the API (`/calls/{name}`)
 export simulate, calibrate
 
-"""
-Simulate a scenario from a PetriNet
-"""
+#-----------------------------------------------------------------------------# intermediate results
+default_callback(::Nothing) = (args...) -> nothing
+
+function default_callback(context)
+    DiffEqCallbacks.FunctionCallingCallback(
+        (t, u, integrator) -> context.interactivity_hook(Dict(:job_id => context.job_id, :params => u))
+    )
+end
+
+#-----------------------------------------------------------------------------# simulate
+# Simulate a scenario from a PetriNet
 function simulate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
     tspan::Tuple{Float64,Float64} = (0.0, 100.0),
     context,
 )::DataFrame
-    callback = isnothing(context) ?
-        (args...) -> nothing :
-        DiffEqCallbacks.FunctionCallingCallback(
-            (t, u, integrator) -> context.interactivity_hook(Dict(:job_id => context.job_id, :params => u))
-        )
+    callback = default_callback(context)
     sol = solve(to_prob(model, params, initials, tspan); progress = true, progress_steps = 1, callback)
     DataFrame(sol)
 end
 
-"
-for custom loss functions, we probably just allow an enum of functions defined in EMA. (todo)
 
-    datafit is exported in EMA
-"
+#-----------------------------------------------------------------------------# calibrate
+# TODO: custom loss functions should live (as an Enum?) in EasyModelAnalysis.jl
 function calibrate(; model::AbstractPetriNet,
     params::Dict{String,Float64},
     initials::Dict{String,Float64},
