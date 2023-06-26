@@ -12,20 +12,10 @@ import MathML
 export to_prob, unzip, symbolize_args, select_data
 
 """
-Transform model representation into a SciML primitive, an ODEProblem
+Transform model representation into a SciML ODEProblem
 """
-function to_prob(model, tspan)
-    (; petri, obj) = model
-    initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in obj["semantics"]["ode"]["initials"]]
-    paramnames = [Symbol(x["id"]) for x in obj["semantics"]["ode"]["parameters"]]
-    paramvals = [x["value"] for x in obj["semantics"]["ode"]["parameters"]]
-    ps_syms = [only(@variables $x) for x in paramnames]
-    sym_defs = ps_syms .=> paramvals
-    initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
-
-    sys = ODESystem(petri; defaults = [states(sys) .=> initial_vals; sym_defs])
-
-    ODEProblem(sys, u0, tspan, p; saveat=1)
+function to_prob(sys, tspan)
+    ODEProblem(sys; tspan, saveat=1)
 end
 
 """

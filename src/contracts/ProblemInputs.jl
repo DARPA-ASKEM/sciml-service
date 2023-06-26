@@ -21,24 +21,48 @@ Act as identity since the value is already coerced
 """
 coerce_dataset(val::DataFrame) = val
 
-struct ASKEMModel
-    petri::PropertyLabelledPetriNet
-    json::AbstractDict
-end
-
 """
-Transform payload in ASKEM model rep into ACSet
+Transform payload in ASKEM model rep into an ODESystem
 """
 function coerce_model(val)
-    parsed = JSON.Parser.parse(val)
-    model = parsed["model"]
-    state_props = Dict(Symbol(s["id"]) => s for s in model["states"])
-    states = [Symbol(s["id"]) for s in model["states"]]
-    transition_props = Dict(Symbol(t["id"]) => t["properties"] for t in model["transitions"])
-    transitions = [Symbol(t["id"]) => (Symbol.(t["input"]) => Symbol.(t["output"])) for t in model["transitions"]]
+    obj = JSON.Parser.parse(val)
+    model = obj["model"]
+    ode = obj["semantics"]["ode"]
 
-    petri = PropertyLabelledPetriNet{Dict}(LabelledPetriNet(states, transitions...), state_props, transition_props)
-    ASKEMModel(petri, parsed)
+    statenames = [Symbol(s["id"]) for s in model["states"]]
+    paramnames = [Symbol(x["id"]) for x in ode["parameters"]]
+
+    # get parameter values and state initial values
+    paramvals = [x["value"] for x in ode["parameters"]]
+    paramvars = [only(@parameters $x) for x in paramnames]
+    sym_defs = paramvars .=> paramvals
+    initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in ode["initials"]]
+    initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
+
+    # build equations from transitions and rate expressions
+    rates = Dict(Symbol(x["target"]) => MathML.parse_str(x["expression_mathml"]) for x in ode["rates"])
+    eqs = Dict(s => Num(0) for s in statenames)
+    for tr in model["transitions"]
+        ratelaw = rates[Symbol(tr["id"])]
+        for s in tr["input"]
+            s = Symbol(s)
+            eqs[s] = eqs[s] - ratelaw
+        end
+        for s in tr["output"]
+            s = Symbol(s)
+            eqs[s] = eqs[s] + ratelaw
+        end
+    end
+
+    t = only(@variables t)
+    D = Differential(t)
+
+    statevars = [only(@variables $s(t)) for s in statenames]
+
+    subst = merge!(Dict(zip(statenames, statevars)), Dict(zip(paramnames, paramvars)))
+    eqs = [D(subst[state]) ~ substitute(eqs[state], subst) for state in statenames]
+
+    ODESystem(eqs, t, statevars, paramvars; defaults = [statevars .=> initial_vals; sym_defs], name=Symbol(obj["name"]))
 end
 
 """
