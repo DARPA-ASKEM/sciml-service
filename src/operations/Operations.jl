@@ -20,7 +20,13 @@ default_callback(::Nothing) = (args...) -> nothing
 
 function default_callback(context)
     DiffEqCallbacks.FunctionCallingCallback(
-        (t, u, integrator) -> context.interactivity_hook(Dict(:job_id => context.job_id, :params => u))
+        (t, u, integrator) -> context.interactivity_hook(
+            Dict(
+                :job_id => context.job_id,
+                :params => u,
+                # TODO: loss functions values
+            )
+        )
     )
 end
 
