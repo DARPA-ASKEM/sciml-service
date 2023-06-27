@@ -5,6 +5,7 @@ module ProblemInputs
 
 import AlgebraicPetri: PropertyLabelledPetriNet, LabelledPetriNet, AbstractPetriNet
 import Catlab.CategoricalAlgebra: parse_json_acset
+import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem
 import DataFrames: DataFrame
 import CSV
 import JSON
@@ -12,12 +13,12 @@ import JSON
 export conversions_for_valid_inputs
 
 """
-Transform string into dataframe before it is used as input    
+Transform string into dataframe before it is used as input
 """
 coerce_dataset(val::String) = CSV.read(IOBuffer(val), DataFrame)
 
 """
-Act as identity since the value is already coerced    
+Act as identity since the value is already coerced
 """
 coerce_dataset(val::DataFrame) = val
 
@@ -71,7 +72,7 @@ Coerce timespan
 coerce_timespan(val) = !isnothing(val) ? Tuple{Float64,Float64}(val) : nothing
 
 """
-Inputs converted from payload to arguments expanded in operations.    
+Inputs converted from payload to arguments expanded in operations.
 """
 conversions_for_valid_inputs = Dict{Symbol,Function}(
     :model => coerce_model,
