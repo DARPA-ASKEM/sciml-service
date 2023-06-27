@@ -10,6 +10,7 @@ import DataFrames: DataFrame
 import MathML
 import CSV
 import JSON
+import MathML
 
 export conversions_for_valid_inputs
 
@@ -31,12 +32,17 @@ function coerce_model(val)
     model = obj["model"]
     ode = obj["semantics"]["ode"]
 
+    t = only(@variables t)
+    D = Differential(t)
+
     statenames = [Symbol(s["id"]) for s in model["states"]]
-    paramnames = [Symbol(x["id"]) for x in ode["parameters"]]
+    statevars  = [only(@variables $s) for s in statenames]
+    statefuncs = [only(@variables $s(t)) for s in statenames]
 
     # get parameter values and state initial values
-    paramvals = [x["value"] for x in ode["parameters"]]
+    paramnames = [Symbol(x["id"]) for x in ode["parameters"]]
     paramvars = [only(@parameters $x) for x in paramnames]
+    paramvals = [x["value"] for x in ode["parameters"]]
     sym_defs = paramvars .=> paramvals
     initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in ode["initials"]]
     initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
@@ -56,15 +62,10 @@ function coerce_model(val)
         end
     end
 
-    t = only(@variables t)
-    D = Differential(t)
+    subst = Dict(zip(statevars, statefuncs))
+    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in zip(statenames, statefuncs)]
 
-    statevars = [only(@variables $s(t)) for s in statenames]
-
-    subst = merge!(Dict(zip(statenames, statevars)), Dict(zip(paramnames, paramvars)))
-    eqs = [D(subst[state]) ~ substitute(eqs[state], subst) for state in statenames]
-
-    ODESystem(eqs, t, statevars, paramvars; defaults = [statevars .=> initial_vals; sym_defs], name=Symbol(obj["name"]))
+    ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj["name"]))
 end
 
 """

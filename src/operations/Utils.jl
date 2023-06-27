@@ -15,7 +15,7 @@ export to_prob, unzip, symbolize_args, select_data
 Transform model representation into a SciML ODEProblem
 """
 function to_prob(sys, tspan)
-    ODEProblem(sys; tspan, saveat=1)
+    ODEProblem(sys, [], tspan, saveat=1)
 end
 
 """

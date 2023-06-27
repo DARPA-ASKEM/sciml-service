@@ -1,4 +1,4 @@
-using Test: @test
+using Test
 using Downloads: download
 using HTTP
 using JSON3
@@ -14,6 +14,8 @@ using SimulationService
         ("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/regnet/examples/lotka_volterra.json", :calibrate),
     ]
         @testset "Operations.$op" begin
+            @info "Testing $op"
+
             json_string = read(download(url), String)
 
             f = SimulationService.Service.Execution.Interface.Available.get_operation(op)
