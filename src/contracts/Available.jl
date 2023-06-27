@@ -28,13 +28,11 @@ function get_operation(operation::Symbol)
 end
 
 function simulate(;
-    model::AbstractPetriNet,
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
+    model,
     timespan=(0.0, 100.0)::Tuple{Float64,Float64},
     context
 )
-    Dict("result" => get_operation(:simulate)(;model=model, params=params, initials=initials, timespan=timespan, context))
+    Dict("result" => get_operation(:simulate)(;model=model, timespan=timespan, context))
 end
 
 available_operations["simulate"] = simulate

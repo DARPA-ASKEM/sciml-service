@@ -25,7 +25,7 @@ Return model JSON as string from TDS by ID
 function fetch_model(model_id::String)
     response = HTTP.get("$(settings["TDS_URL"])/model_configurations/$model_id", ["Content-Type" => "application/json"])
     body = response.body |> JSON.read ∘ String
-    body.configuration
+    JSON.write(body.configuration)
 end
 
 """
