@@ -7,7 +7,6 @@ import AlgebraicPetri: PropertyLabelledPetriNet, LabelledPetriNet, AbstractPetri
 import Catlab.CategoricalAlgebra: parse_json_acset
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem
 import DataFrames: DataFrame
-import MathML
 import CSV
 import JSON
 import MathML
