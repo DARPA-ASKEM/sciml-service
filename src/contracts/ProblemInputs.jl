@@ -9,6 +9,7 @@ import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, 
 import DataFrames: DataFrame
 import CSV
 import JSON
+import MathML
 
 export conversions_for_valid_inputs
 
