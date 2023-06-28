@@ -34,13 +34,8 @@ for custom loss functions, we probably just allow an enum of functions defined i
 function calibrate(; model, dataset::DataFrame, context)
     timesteps, data = select_data(dataset)
     prob = to_prob(model, extrema(timesteps))
-    sys = prob.f.sys
-    # TODO
-    p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-    @show p
-    ks, vs = unzip(collect(p))
-    p = Num.(ks) .=> vs
-    data = symbolize_args(data, states(sys))
+    p = [Num(param) => model.defaults[param] for param in parameters(model)]
+    data = symbolize_args(data, states(model))
     fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
     @info fitp
     # DataFrame(fitp)
