@@ -38,26 +38,26 @@ end
 available_operations["simulate"] = simulate
 
 function calibrate_then_simulate(; 
-    model::AbstractPetriNet, # TODO(five): Remove from exports and rename
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
+    model,
     dataset::DataFrame,
     timespan::Union{Nothing, Tuple{Float64, Float64}} = nothing,
     context,
 )
     results = Dict{String, Any}()
-    calibrated_params = get_operation(:calibrate)(;model=model, params=params, initials=initials, dataset=dataset, context=context)
+    calibrated_params = get_operation(:calibrate)(;model=model, dataset=dataset, context=context)
     results["parameters"] = calibrated_params
-    if in(NaN, values(calibrated_params)) throw("NaN adjustment") 
+    if in(NaN, values(calibrated_params)) 
         return results
     end
-    adjusted_params = Dict(string(key.val) => value for (key,value) in calibrated_params)
+    for (sym, val) in calibrated_params
+        model.defaults[sym] = val
+    end
     tmin, tmax = (dataset.timestep[1], dataset.timestep[end])
-    results["simulation"] = get_operation(:simulate)(;model=model, params=adjusted_params, initials=initials, timespan=(tmin, tmax), context=context)
+    results["simulation"] = get_operation(:simulate)(;model=model, timespan=(tmin, tmax), context=context)
     if isnothing(timespan)
         return results
     end
-    results["extra-simulation"] = get_operation(:simulate)(;model=model, params=adjusted_params, initials=initials, timespan=timespan, context=context)
+    results["extra-simulation"] = get_operation(:simulate)(;model=model, timespan=timespan, context=context)
     results
 end
 
