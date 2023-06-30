@@ -17,37 +17,25 @@ include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_dat
 export simulate, calibrate, ensemble
 
 """
-Simulate a scenario from a PetriNet    
+Simulate a scenario from a PetriNet
 """
-function simulate(; model::AbstractPetriNet,
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
-    timespan=(0.0, 100.0)::Tuple{Float64,Float64},
-    context
-)::DataFrame
-    sol = solve(to_prob(model, params, initials, timespan); progress = true, progress_steps = 1)
+# model::ASKEMModel
+function simulate(; model, timespan::Tuple{Float64,Float64}=(0.0, 100.0), context)::DataFrame
+    sol = solve(to_prob(model, timespan); progress = true, progress_steps = 1)
     DataFrame(sol)
 end
 
 "
 for custom loss functions, we probably just allow an enum of functions defined in EMA. (todo)
 
-    datafit is exported in EMA 
+    datafit is exported in EMA
 "
-function calibrate(; model::AbstractPetriNet,
-    params::Dict{String,Float64},
-    initials::Dict{String,Float64},
-    dataset::DataFrame,
-    context,
-)
+# model::ASKEMModel
+function calibrate(; model, dataset::DataFrame, context)
     timesteps, data = select_data(dataset)
-    prob = to_prob(model, params, initials, extrema(timesteps))
-    sys = prob.f.sys
-    p = symbolize_args(params, parameters(sys)) # this ends up being a second call to symbolize_args 🤷
-    @show p
-    ks, vs = unzip(collect(p))
-    p = Num.(ks) .=> vs
-    data = symbolize_args(data, states(sys))
+    prob = to_prob(model, extrema(timesteps))
+    p = [Num(param) => model.defaults[param] for param in parameters(model)]
+    data = symbolize_args(data, states(model))
     fitp = EasyModelAnalysis.datafit(prob, p, timesteps, data)
     @info fitp
     # DataFrame(fitp)
@@ -55,7 +43,7 @@ function calibrate(; model::AbstractPetriNet,
 end
 
 """
-NOT IMPLEMENTED    
+NOT IMPLEMENTED
 """
 function ensemble(; models::AbstractArray{AbstractPetriNet}, timespan=(0.0, 100.0)::Tuple{Float64, Float64})
     throw("ENSEMBLE IS NOT YET IMPLEMENTED")
@@ -78,4 +66,4 @@ function _global_datafit(; model::LabelledPetriNet,
     DataFrame(fitp)
 end
 
-end # module Operations 
+end # module Operations
