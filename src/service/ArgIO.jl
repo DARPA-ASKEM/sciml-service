@@ -10,7 +10,7 @@ import HTTP: Request
 import JSON3 as JSON
 
 include("../Settings.jl"); import .Settings: settings
-include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, update_simulation, upload
+include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, update_simulation, upload, register_config
 
 export prepare_input, prepare_output
 
@@ -79,19 +79,24 @@ Coerces NaN values to nothing for each parameter
 """
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
-    fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
+    fixed_params = Dict{String, Float64}(string(key) => nan_to_nothing(value) for (key, value) in params)
     if settings["ENABLE_TDS"]
-        return upload(fixed_params, context[:job_id]; name=name)
+        model_config_id = nothing
+        if !in(nothing, values(params))
+            model_config_id = register_config(fixed_params, context[:raw_args][:model_config_id], context[:raw_args][:dataset])
+        end
+        payload = Dict("model_config_id" => model_config_id, "parameters" => fixed_params)        
+        return upload(payload, context[:job_id]; name=name)
     end
 end
 
 
 """
-Coerces NaN values to nothing for each parameter   
+Saves all subobjects
 """
 function prepare_output(results::Dict{String}; context...)
     if settings["ENABLE_TDS"]
-        urls = []
+        urls = String[]
         for (name, value) in results
             append!(urls, [prepare_output(value; context..., name=name)])
         end
