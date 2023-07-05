@@ -34,7 +34,9 @@ Register a calibrated model config
 function register_config(output::Dict, model_config_id::String, dataset) 
     response = HTTP.get("$(settings["TDS_URL"])/model_configurations/$model_config_id", ["Content-Type" => "application/json"])
     body = response.body |> copy ∘ JSON.read ∘ String
-    delete!(body, "id")
+    delete!(body, :id)
+    delete!(body, :timestamp)
+    body[:name] *= " (Calibrated)"
     body[:calibration] = dataset
     body[:calibrated] = true
     parameters = body[:configuration][:semantics][:ode][:parameters]
