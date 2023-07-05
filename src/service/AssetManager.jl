@@ -6,8 +6,7 @@ module AssetManager
 import DataFrames: rename!, DataFrame
 import CSV, Downloads, HTTP
 import OpenAPI.Clients: Client
-import JSON3
-import JSON
+import JSON3 as JSON
 import UUIDs: UUID
 include("../Settings.jl"); import .Settings: settings
 
@@ -25,8 +24,8 @@ Return model JSON as string from TDS by ID
 """
 function fetch_model(model_config_id::String)
     response = HTTP.get("$(settings["TDS_URL"])/model_configurations/$model_config_id", ["Content-Type" => "application/json"])
-    body = response.body |> JSON3.read ∘ String
-    JSON3.write(body.configuration)
+    body = response.body |> JSON.read ∘ String
+    JSON.write(body.configuration)
 end
 
 """
@@ -34,24 +33,16 @@ Register a calibrated model config
 """
 function register_config(output::Dict, model_config_id::String, dataset) 
     response = HTTP.get("$(settings["TDS_URL"])/model_configurations/$model_config_id", ["Content-Type" => "application/json"])
-    body = response.body |> JSON.parse ∘ String
+    body = response.body |> copy ∘ JSON.read ∘ String
     delete!(body, "id")
     body[:calibration] = dataset
     body[:calibrated] = true
-    parameters = body[:configuration]["semantics"]["ode"]["parameters"]
-    # updated_parameters = []
+    parameters = body[:configuration][:semantics][:ode][:parameters]
     for param in parameters
-        # param_obj= copy(param) 
-        # updated_param = Dict()
-        # updated_param["id"] = param_obj[:id]
-        # updated_param["distribution"] = get(param_obj, :distribution, nothing)
-        param["value"] = output[string(param["id"])]
-
-        # append!(updated_parameters, updated_param)
+        param[:value] = output[string(param[:id])]
     end
-    #body[:configuration]["semantics"]["ode"]["parameters"] = updated_parameters
-    response = HTTP.post("$(settings["TDS_URL"])/model_configurations/$model_config_id", ["Content-Type" => "application/json"], body=JSON3.write(body))
-    JSON3.read(response.body)[:id]
+    response = HTTP.post("$(settings["TDS_URL"])/model_configurations", ["Content-Type" => "application/json"], body=JSON.write(body))
+    JSON.read(response.body)[:id]
 end
 
 """
@@ -61,7 +52,7 @@ function fetch_dataset(dataset_id::String, filename::String, mappings::Dict=Dict
     # TODO(five): Select name dynamicially
     url = "$(settings["TDS_URL"])/datasets/$dataset_id/download-url?filename=$filename"
     response = HTTP.get(url, ["Content-Type" => "application/json"])
-    body = response.body |> JSON3.read ∘ String
+    body = response.body |> JSON.read ∘ String
     io = IOBuffer()
     Downloads.download(body.url, io)
     seekstart(io)
@@ -94,11 +85,11 @@ function update_simulation(job_id::Int64, updated_fields::Dict{Symbol})
     if isnothing(response)
             throw("Job cannot finish because it does not exist in TDS")
     end
-    body = response.body |> Dict ∘ JSON3.read ∘ String
+    body = response.body |> Dict ∘ JSON.read ∘ String
     for field in updated_fields
         body[field.first] = field.second
     end
-    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=JSON3.write(body))
+    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=JSON.write(body))
 end
 
 """
@@ -111,7 +102,7 @@ function upload(output::DataFrame, job_id; name="result")
     io = IOBuffer()
     CSV.write(io, output)
     seekstart(io)
-    url = JSON3.read(response.body)[:url]
+    url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
     bare_url = split(url, "?")[1]
     bare_url
@@ -119,13 +110,13 @@ end
 
 
 """
-Upload a JSON3 to S3/MinIO
+Upload a JSON to S3/MinIO
 """
 function upload(output::Dict, job_id; name="result")
     uuid = gen_uuid(job_id)
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
-    url = JSON3.read(response.body)[:url]
-    HTTP.put(url, ["Content-Type" => "application/json"], body = JSON3.write(output))
+    url = JSON.read(response.body)[:url]
+    HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
     bare_url = split(url, "?")[1]
     bare_url
 end
