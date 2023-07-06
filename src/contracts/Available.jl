@@ -9,6 +9,7 @@ import DataFrames: DataFrame
 
 include("./ProblemInputs.jl"); import .ProblemInputs: conversions_for_valid_inputs
 include("./SystemInputs.jl"); import .SystemInputs: Context
+include("./Failures.jl"); import .Failures: Failure
 include("../operations/Operations.jl"); import .Operations
 include("../Settings.jl"); import .Settings: settings
 
@@ -47,7 +48,7 @@ function calibrate_then_simulate(;
     calibrated_params = get_operation(:calibrate)(;model=model, dataset=dataset, context=context)
     results["parameters"] = calibrated_params
     if in(NaN, values(calibrated_params)) 
-        return results
+        return Failure("Unable to converge on any parameter")
     end
     for (sym, val) in calibrated_params
         model.defaults[sym] = val

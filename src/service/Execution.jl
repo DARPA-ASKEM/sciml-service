@@ -10,6 +10,7 @@ import JobSchedulers: submit!, job_query, result, generate_id, Job, JobScheduler
 import UUIDs: UUID
 
 include("../contracts/Interface.jl"); import .Interface: available_operations, use_operation, Context
+include("../contracts/Failures.jl"); import .Failures: Failure
 include("./AssetManager.jl"); import .AssetManager: update_simulation
 include("./ArgIO.jl"); import .ArgIO: prepare_input, prepare_output
 include("./Queuing.jl"); import .Queuing: publish_to_rabbitmq
@@ -24,6 +25,17 @@ SCHEDULER_TO_API_STATUS_MAP = Dict(
     JobSchedulers.FAILED => :error,
     JobSchedulers.CANCELLED => :cancelled,
 )
+
+"""
+Get status of job    
+"""
+function get_status(job)
+    status = SCHEDULER_TO_API_STATUS_MAP[job.state]
+    if (status == :complete) && isa(result(job), Failure)
+        status = :failed
+    end
+    status
+end
 
 """
 Generate the task to run with the correct context    

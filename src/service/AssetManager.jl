@@ -106,7 +106,7 @@ function upload(output::DataFrame, job_id; name="result")
     seekstart(io)
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
-    bare_url = split(url, "?")[1]
+    bare_url = "$name.csv"
     bare_url
 end
 
@@ -119,7 +119,7 @@ function upload(output::Dict, job_id; name="result")
     response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid/upload-url?filename=$name.json", ["Content-Type" => "application/json"])
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = JSON.write(output))
-    bare_url = split(url, "?")[1]
+    bare_url = "$name.json"
     bare_url
 end
 
