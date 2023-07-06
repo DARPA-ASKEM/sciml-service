@@ -102,7 +102,7 @@ function retrieve_job(_, uuid::String, element::String)
         )
     end
     if element == "status"
-        return Dict("status" => SCHEDULER_TO_API_STATUS_MAP[job.state])
+        return Dict("status" => get_status(job))
     elseif element == "result"
         if job.state == :done
             return result(job)

@@ -82,17 +82,21 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", 
     nan_to_nothing(value) = isnan(value) ? nothing : value
     fixed_params = Dict{String, Float64}(string(key) => nan_to_nothing(value) for (key, value) in params)
     if settings["ENABLE_TDS"]
-        model_config_id = nothing
-        if !all(isnothing, values(params))
-            model_config_id = register_config(fixed_params, context[:raw_args][:model_config_id], context[:raw_args][:dataset])
-        else
-            return missing
-        end
+        model_config_id = register_config(fixed_params, context[:raw_args][:model_config_id], context[:raw_args][:dataset])
         payload = Dict("model_config_id" => model_config_id, "parameters" => fixed_params)        
         return upload(payload, context[:job_id]; name=name)
     end
 end
 
+"""
+Record failure of job
+"""
+function prepare_output(failure; context...)
+    if settings["ENABLE_TDS"]
+        update_simulation(context[:job_id], Dict([:status => "failed", :completed_time => time(), :reason => failure.reason]))
+    end
+    failure
+end
 
 """
 Saves all subobjects
@@ -100,10 +104,6 @@ Saves all subobjects
 function prepare_output(results::Dict{String}; context...)
     if settings["ENABLE_TDS"]
         urls = String[]
-        if isa(results, Failure)
-            update_simulation(context[:job_id], Dict([:status => "failed", :completed_time => time(), :reason => results.reason]))
-            return
-        end
         for (name, value) in results
             url = prepare_output(value; context..., name=name) 
             append!(urls, [url])
