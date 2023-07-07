@@ -79,7 +79,7 @@ function (o::IntermediateResults)(integrator)
             :iter => integrator.iter,
             :time => integrator.t,
             :params => integrator.u,
-            :abs_err => norm(integrator.u - integrator.uprev),
+            :abserr => norm(integrator.u - integrator.uprev),
             :retcode => Symbol(SciMLBase.check_error(integrator)),
         )
         if isnothing(o.context)
