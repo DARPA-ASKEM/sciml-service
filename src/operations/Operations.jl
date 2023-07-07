@@ -44,10 +44,14 @@ function calibrate(; model, dataset::DataFrame, context)
 end
 
 """
-NOT IMPLEMENTED
+Simulate an ensemble of models
 """
-function ensemble(; models::AbstractArray{AbstractPetriNet}, timespan=(0.0, 100.0)::Tuple{Float64, Float64})
-    throw("ENSEMBLE IS NOT YET IMPLEMENTED")
+function ensemble(; models::AbstractVector, timespan=(0.0, 100.0)::Tuple{Float64, Float64})
+    probs = map(m->to_prob(m, timespan), models)
+    prob_func(prob, i, rep) = remake(probs[i])
+    enprob = EnsembleProblem(probs[1]; prob_func)
+    sol = solve(enprob; saveat=1, trajectories=length(probs))
+    map(DataFrame, sol)
 end
 
 "long running functions like global_datafit and sensitivity wrappers will need to be refactored to share callback info incrementally"
