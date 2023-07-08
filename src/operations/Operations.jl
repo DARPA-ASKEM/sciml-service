@@ -63,25 +63,25 @@ function select_data(df::DataFrame)
 end
 
 #-----------------------------------------------------------------------------# IntermediateReulsts callback
-# Return information about current state of the solver at regular intervals
 mutable struct IntermediateResults
-    last_callback::DateTime
-    every::Dates.TimePeriod
-    context  # ::Union{Nothing, Context}
+    last_callback::DateTime  # Track the last time the callback was called
+    every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
+    context  # ::Union{Nothing, Context} (context.interactivity_hook sends Dict to frontend via RabbitMQ)
 end
 IntermediateResults(context; every=Dates.Second(5)) = IntermediateResults(typemin(DateTime), every, context)
 
-# TODO: ensure that this is called at the end of the solve
+intermediate_results_to_rabbitmq(integrator) = Dict(
+    :iter => integrator.iter,
+    :time => integrator.t,
+    :params => integrator.u,
+    :abserr => norm(integrator.u - integrator.uprev),
+    :retcode => Symbol(SciMLBase.check_error(integrator)),
+)
+
 function (o::IntermediateResults)(integrator)
     if o.last_callback + o.every ≤ now()
         o.last_callback = now()
-        d = Dict(
-            :iter => integrator.iter,
-            :time => integrator.t,
-            :params => integrator.u,
-            :abserr => norm(integrator.u - integrator.uprev),
-            :retcode => Symbol(SciMLBase.check_error(integrator)),
-        )
+        d = intermediate_results_to_rabbitmq(integrator)
         if isnothing(o.context)
             @info "IntermediateResults: $(NamedTuple(d))"
         else
@@ -94,8 +94,7 @@ end
 #-----------------------------------------------------------------------------# simulate
 function simulate(; model::ODESystem, timespan::Tuple{Float64,Float64}=(0.0, 100.0), context=nothing)
     prob = to_prob(model, timespan)
-    res = IntermediateResults(context)
-    callback = DiscreteCallback((args...) -> true, res)
+    callback = DiscreteCallback((args...) -> true, IntermediateResults(context))
     sol = solve(prob; progress = true, progress_steps = 1, callback)
     DataFrame(sol)
 end
