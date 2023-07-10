@@ -93,7 +93,11 @@ function prepare_output(results::Dict{String}; context...)
     if settings["ENABLE_TDS"]
         urls = []
         for (name, value) in results
-            append!(urls, [prepare_output(value; context..., name=name)])
+            output = prepare_output(value; context..., name=name)
+            if !(typeof(output) <: AbstractArray)
+                output = [output]
+            end
+            append!(urls, output)
         end
         update_simulation(context[:job_id], Dict([:status => "complete", :result_files => urls, :completed_time => time()]))
     end

@@ -9,6 +9,7 @@ import OpenAPI.Clients: Client
 import JSON3 as JSON
 import UUIDs: UUID
 include("../Settings.jl"); import .Settings: settings
+include("./Stats.jl"); import .Stats: calculate_stats
 
 export fetch_dataset, fetch_model, update_simulation, upload
 
@@ -88,7 +89,7 @@ function upload(output::DataFrame, job_id; name="result")
     url = JSON.read(response.body)[:url]
     HTTP.put(url, ["Content-Type" => "application/json"], body = take!(io))
     bare_url = split(url, "?")[1]
-    bare_url
+    [bare_url, upload(calculate_stats(output), job_id; name="$name-stats")]
 end
 
 
