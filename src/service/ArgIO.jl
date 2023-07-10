@@ -15,11 +15,11 @@ include("./AssetManager.jl"); import .AssetManager: fetch_dataset, fetch_model, 
 export prepare_input, prepare_output
 
 
-"""
-Transform requests into arguments to be used by operation    
+# """
+# Transform requests into arguments to be used by operation
 
-Optionally, IDs are hydrated with the corresponding entity from TDS.
-"""
+# Optionally, IDs are hydrated with the corresponding entity from TDS.
+# """
 function prepare_input(args; context...)
     if settings["ENABLE_TDS"]
         update_simulation(context[:job_id], Dict([:status=>"running", :start_time => time()]))
@@ -40,27 +40,27 @@ function prepare_input(args; context...)
         args[:timespan] = nothing
     end
     if in(:extra, keys(args))
-        for (key, value) in Dict(args[:extra]) 
+        for (key, value) in Dict(args[:extra])
             args[Symbol(key)] = value
         end
     end
     args
 end
 
-"""
-Generate a `prepare_input` function that is already contextualized    
-"""
+# """
+# Generate a `prepare_input` function that is already contextualized
+# """
 function prepare_input(context)
     function contextualized_prepare_input(args)
         prepare_input(args; context...)
     end
 end
 
-"""
-Normalize the header of the resulting dataframe and return a CSV
+# """
+# Normalize the header of the resulting dataframe and return a CSV
 
-Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned.    
-"""
+# Optionally, the CSV is saved to TDS instead an the coreresponding ID is returned.
+# """
 function prepare_output(dataframe::DataFrame; name="0", context...)
     stripped_names = names(dataframe) .=> (r -> replace(r, "(t)"=>"")).(names(dataframe))
     rename!(dataframe, stripped_names)
@@ -74,9 +74,9 @@ function prepare_output(dataframe::DataFrame; name="0", context...)
     end
 end
 
-"""
-Coerces NaN values to nothing for each parameter   
-"""
+# """
+# Coerces NaN values to nothing for each parameter
+# """
 function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", context...)
     nan_to_nothing(value) = isnan(value) ? nothing : value
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
@@ -86,9 +86,9 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", 
 end
 
 
-"""
-Coerces NaN values to nothing for each parameter   
-"""
+# """
+# Coerces NaN values to nothing for each parameter
+# """
 function prepare_output(results::Dict{String}; context...)
     if settings["ENABLE_TDS"]
         urls = []
@@ -99,9 +99,9 @@ function prepare_output(results::Dict{String}; context...)
     end
 end
 
-"""
-Generate a `prepare_output` function that is already contextualized    
-"""
+# """
+# Generate a `prepare_output` function that is already contextualized
+# """
 function prepare_output(context)
     function contextualized_prepare_output(arg)
         prepare_output(arg; context...)
