@@ -1,15 +1,19 @@
 module SimulationService
 
-using Oxygen: Oxygen
+
+import DataFrames: DataFrame
+using EasyConfig: EasyConfig
 using HTTP: HTTP
 using JSON3: JSON3
+using ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem
+using Oxygen: Oxygen
 
 export start!, stop!
 
 #-----------------------------------------------------------------------------# start!
 function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     stop!()
-    Threads.nthreads() > 1 || error("Server is not parallelized. Start the REPL with `julia --threads=auto`.")
+    Threads.nthreads() > 1 || error("Server require `Thread.nthreads() > 1`.  Start Julia via `julia --threads=auto`.")
     Oxygen.resetstate()
     Oxygen.@get "/" health
     Oxygen.@post "/simulate" req -> simulate(process_request(req))
@@ -24,18 +28,18 @@ function stop!()
 end
 
 #-----------------------------------------------------------------------------# settings
-# server
+# Server
 SIMSERVICE_HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
 SIMSERVICE_PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8000"))
 
-# rabbitmq
+# RabbitMQ
 SIMSERVICE_RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true"
 SIMSERVICE_RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
 SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
 SIMSERVICE_RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
 SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 
-# tds
+# Terrarium Data Service
 SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
 SIMSERVICE_TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
 
@@ -62,19 +66,73 @@ function upload(output, job_id::String; name::String="result")
     return first(split(url, '?'))
 end
 
-#-----------------------------------------------------------------------------# /health
+#-----------------------------------------------------------------------------# health: "GET /"
 function health(::HTTP.Request)
-    return (; SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE)
+    return (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE)
 end
 
 #-----------------------------------------------------------------------------# ModelRepresentation
 struct ModelRepresentation
-    json_obj::JSON3.Object  # Exact JSON object from the request
+    obj::JSON3.Object           # Exact JSON object from the request
+    config::EasyConfig.Config   # Like `obj` but with stuff filled in
 end
 
 function ModelRepresentation(req::HTTP.Request)
     obj = JSON3.read(req.body)
-    ModelRepresentation(obj)
+    c = EasyConfig.Config(k => _get(Val(k), v) for (k, v) in pairs(obj))
+    ModelRepresentation(obj, c)
+end
+
+# fallback to identity
+_get(::Val, val) = val
+
+# dataset
+_get(::Val{:dataset}, val::String) = CSV.read(IOBuffer(val), DataFrame)
+
+# models
+_get(::Val{:models}, val) = _get.(Val{:model}, val)
+
+# model
+function _get(::Val{:model}, val)
+    return val
+    obj = JSON3.read(val)
+    model = obj.model
+    ode = obj.semantics.ode
+
+    t = only(@variables t)
+    D = Differential(t)
+
+    statenames = [Symbol(s["id"]) for s in model["states"]]
+    statevars  = [only(@variables $s) for s in statenames]
+    statefuncs = [only(@variables $s(t)) for s in statenames]
+
+    # get parameter values and state initial values
+    paramnames = [Symbol(x["id"]) for x in ode["parameters"]]
+    paramvars = [only(@parameters $x) for x in paramnames]
+    paramvals = [x["value"] for x in ode["parameters"]]
+    sym_defs = paramvars .=> paramvals
+    initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in ode["initials"]]
+    initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
+
+    # build equations from transitions and rate expressions
+    rates = Dict(Symbol(x["target"]) => MathML.parse_str(x["expression_mathml"]) for x in ode["rates"])
+    eqs = Dict(s => Num(0) for s in statenames)
+    for tr in model["transitions"]
+        ratelaw = rates[Symbol(tr["id"])]
+        for s in tr["input"]
+            s = Symbol(s)
+            eqs[s] = eqs[s] - ratelaw
+        end
+        for s in tr["output"]
+            s = Symbol(s)
+            eqs[s] = eqs[s] + ratelaw
+        end
+    end
+
+    subst = Dict(zip(statevars, statefuncs))
+    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in zip(statenames, statefuncs)]
+
+    ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj["name"]))
 end
 
 

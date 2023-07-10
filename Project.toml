@@ -4,6 +4,10 @@ authors = ["Five Grant <5@fivegrant.com>"]
 version = "0.6.0"
 
 [deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+EasyConfig = "acab07b0-f158-46d4-8913-50acef6d41fe"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+MathML = "abcecc63-2b08-419c-80c4-c63dca6fa478"
+ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 Oxygen = "df9a0d86-3283-4920-82dc-4555fc0d1d8b"
