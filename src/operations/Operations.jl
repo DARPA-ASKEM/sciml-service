@@ -17,8 +17,6 @@ using Dates: Dates, DateTime, now
 
 # import MathML
 
-# include("./Utils.jl"); import .Utils: to_prob, unzip, symbolize_args, select_data
-
 # NOTE: Operations exposed to the rest of the Simulation Service
 export simulate, calibrate, ensemble
 

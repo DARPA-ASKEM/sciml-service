@@ -18,6 +18,9 @@ using SimulationService
     @testset "calibrate" begin
         # TODO
     end
+    @testset "ensemble" begin
+        # TODO
+    end
 end
 
 
