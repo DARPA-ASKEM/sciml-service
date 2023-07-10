@@ -13,6 +13,8 @@ docker compose --file docker/docker-compose.yml up --build
 With Julia REPL:
 
 ```
+>> export ENABLE_TDS=false # Include if you would like to disable backend services
+>> julia --project --threads 15 # We need multithreading
 julia> using SimulationService
 julia> start!()
 julia> # output of REST API and Scheduler
