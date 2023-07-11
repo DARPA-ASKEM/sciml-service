@@ -34,12 +34,21 @@ end
 
 #-----------------------------------------------------------------------------# test routes
 @testset "Routes" begin
-    host = "172.0.0.1"
+    host = "127.0.0.1"
     port = 8080
     url = "http://$host:$port"
 
-    server = start!(; host="127.0.0.1", port, async=true)
-    sleep(5)
+    server = start!(; host, port, async=true)
+
+    ready = false
+    while !ready
+        try
+            res = HTTP.get(url)
+            ready = true
+        catch
+            sleep(1)
+        end
+    end
 
     @testset "/" begin
         res = HTTP.get(url)
@@ -59,5 +68,5 @@ end
         @test true # TODO
     end
 
-    Oxygen.terminate()
+    stop!()
 end

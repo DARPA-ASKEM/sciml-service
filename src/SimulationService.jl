@@ -61,7 +61,7 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     Oxygen.resetstate()
     Oxygen.@get "/" health
     Oxygen.@get "/status/{job_id}" (req,job_id) -> "TODO: Not Implemented yet."
-    Oxygen.@post "/operation/{op}" operation
+    Oxygen.@post "/{op}" operation
     Oxygen.serveparallel(; host, port, async=true, kw...)
 end
 
