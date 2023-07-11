@@ -1,17 +1,26 @@
 using Test
-using Downloads: download
+using DataFrames
 using HTTP
 using JSON3
-using SimulationService
+using Oxygen
+using SciMLBase: solve
 
+# Required to run on machine without TDS/RabbitMQ
+ENV["SIMSERVICE_ENABLE_TDS"] = "false"
+ENV["SIMSERVICE_RABBITMQ_ENABLED"] = "false"
+
+using SimulationService
 
 #-----------------------------------------------------------------------------# Operations
 @testset "Operations" begin
     @testset "simulate" begin
         url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        json_string = read(download(url), String)
-        model = SimulationService._get(Val(:model), json_string)
-        f(; model, context=nothing)
+        obj = SimulationService.get_json(url)
+        sys = SimulationService.ode_system_from_amr(obj)
+        op = SimulationService.Simulate(sys, (0.0, 100.0))
+        df = solve(op)
+        @test df isa DataFrame
+        @test extrema(df.timestamp) == (0.0, 100.0)
     end
 
     @testset "calibrate" begin
@@ -27,9 +36,9 @@ end
 @testset "Routes" begin
     host = "172.0.0.1"
     port = 8080
-    url = "$host:$port"
+    url = "http://$host:$port"
 
-    server = start!(; host, port, async=true)
+    server = start!(; host="127.0.0.1", port, async=true)
     sleep(5)
 
     @testset "/" begin
@@ -37,4 +46,18 @@ end
         @test res.status == 200
         @test JSON3.read(res.body).status == "ok"
     end
+
+    @testset "/operations/simulate" begin
+        @test true # TODO
+    end
+
+    @testset "/operations/calibrate" begin
+        @test true # TODO
+    end
+
+    @testset "/operations/ensemble" begin
+        @test true # TODO
+    end
+
+    Oxygen.terminate()
 end
