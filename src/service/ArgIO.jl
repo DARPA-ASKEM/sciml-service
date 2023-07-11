@@ -31,7 +31,13 @@ function prepare_input(args; context...)
         args[:model] = fetch_model(args[:model_config_id])
     end
     if in(:dataset, keys(args)) && !isa(args[:dataset], String)
-        args[:dataset] = fetch_dataset(args[:dataset]["id"], args[:dataset]["filename"], get(args[:dataset], "mappings", Dict()))
+        if !isa(args[:dataset], String)
+            args[:dataset] = fetch_dataset(args[:dataset]["id"], args[:dataset]["filename"], get(args[:dataset], "mappings", Dict()))
+        else
+            io = IOBuffer(args[:dataset])
+            seekstart(io)
+            args[:dataset] = CSV.read(io, DataFrame)
+        end
     end
     if in(:model_config_ids, keys(args))
         args[:models] = fetch_model.(map(string, args[:model_ids]))
@@ -82,6 +88,8 @@ function prepare_output(params::Vector{Pair{Symbolics.Num, Float64}}; name="0", 
     fixed_params = Dict(key => nan_to_nothing(value) for (key, value) in params)
     if settings["ENABLE_TDS"]
         return upload(fixed_params, context[:job_id]; name=name)
+    else
+        params
     end
 end
 
@@ -90,12 +98,14 @@ end
 # Coerces NaN values to nothing for each parameter
 # """
 function prepare_output(results::Dict{String}; context...)
+    prepared_outputs = []
+    for (name, value) in results
+        append!(prepared_outputs, [prepare_output(value; context..., name=name)])
+    end
     if settings["ENABLE_TDS"]
-        urls = []
-        for (name, value) in results
-            append!(urls, [prepare_output(value; context..., name=name)])
-        end
-        update_simulation(context[:job_id], Dict([:status => "complete", :result_files => urls, :completed_time => time()]))
+        update_simulation(context[:job_id], Dict([:status => "complete", :result_files => prepared_outputs, :completed_time => time()]))
+    else
+        results
     end
 end
 

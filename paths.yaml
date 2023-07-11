@@ -11,8 +11,8 @@
             properties:
               engine: 
                 type: string
-                enum: [SciML, CIEMSS]
-                example: CIEMSS
+                enum: [sciml, ciemss]
+                example: sciml
               model_config_id:
                 type: string
                 example: "ba8da8d4-047d-11ee-be56"
@@ -61,8 +61,8 @@
             properties:
               engine: 
                 type: string
-                enum: [SciML, CIEMSS]
-                example: CIEMSS
+                enum: [sciml, ciemss]
+                example: sciml
               model_config_id:
                 type: string
                 example: "c1cd941a-047d-11ee-be56"
@@ -117,8 +117,8 @@
             properties:
               engine: 
                 type: string
-                enum: [SciML, CIEMSS]
-                example: CIEMSS              
+                enum: [sciml, ciemss]
+                example: sciml              
               model_config_ids:
                 type: array
                 items:

@@ -83,8 +83,8 @@ function (o::IntermediateResults)(integrator)
         if isnothing(o.context)
             @info "IntermediateResults: $(NamedTuple(d))"
         else
-            d[:job_id] = context.job_id
-            context.interactivity_hook(d)
+            d[:job_id] = o.context.job_id
+            o.context.interactivity_hook(d)
         end
     end
 end
