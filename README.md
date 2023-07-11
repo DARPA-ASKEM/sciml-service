@@ -27,7 +27,7 @@ start!()
 url = SimulationService.server_url[]
 
 # JSON in ASKEM Model Representation
-amr = JSON3.read(HTTP.get("./examples/BIOMD0000000955_askenet.json").body)
+amr = JSON3.read(read("./examples/BIOMD0000000955_askenet.json"))
 
 # Kick off the simulation job
 res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=json)

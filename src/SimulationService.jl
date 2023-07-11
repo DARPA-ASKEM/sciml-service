@@ -4,6 +4,7 @@ import AMQPClient
 import DataFrames: DataFrame
 import Dates
 import DifferentialEquations
+import EasyConfig: Config
 import EasyModelAnalysis
 import HTTP
 import JobSchedulers
@@ -13,6 +14,7 @@ import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, 
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, solve
+import SwaggerMarkdown
 import UUIDs
 import YAML
 
@@ -38,7 +40,7 @@ export start!, stop!
 #-----------------------------------------------------------------------------# __init__
 const rabbit_mq_channel = Ref{Any}() # TODO: replace Any with what AMQPClient.channel returns
 const server_url = Ref{String}()
-const openapi_spec = Ref{Dict{Any,Any}}()  # populated from https://github.com/DARPA-ASKEM/simulation-api-spec
+const openapi_spec = Ref{Config}()  # populated from https://github.com/DARPA-ASKEM/simulation-api-spec
 
 function __init__()
     if Threads.nthreads() == 1
@@ -58,7 +60,8 @@ function __init__()
 
     server_url[] = "http://$SIMSERVICE_HOST:$SIMSERVICE_PORT"
 
-    openapi_spec[] = YAML.load_file(download("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml"))
+    spec = download("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml")
+    openapi_spec[] = Config(YAML.load_file(spec))
 end
 
 #-----------------------------------------------------------------------------# start!
@@ -69,11 +72,17 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     JobSchedulers.scheduler_start()
     JobSchedulers.set_scheduler(max_cpu=0.5, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
+    # routes:
     Oxygen.@get "/" health
     Oxygen.@post "/{operation_name}" operation
     Oxygen.@get "/jobs/status/{job_id}" job_status
     Oxygen.@get "/jobs/result/{job_id}" job_result
     Oxygen.@post "/jobs/kill/{job_id}" job_kill
+    # docs:
+    api = SwaggerMarkdown.OpenAPI("3.0", openapi_spec[])
+    swagger = SwaggerMarkdown.build(api)
+    Oxygen.mergeschema(swagger)
+    # server:
     Oxygen.serveparallel(; host, port, async=true, kw...)
 end
 
