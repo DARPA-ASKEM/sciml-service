@@ -4,14 +4,17 @@ import AMQPClient
 import DataFrames: DataFrame
 import Dates
 import DifferentialEquations
+import EasyModelAnalysis
 import HTTP
 import JobSchedulers
 import JSON3
 import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem
+import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, solve
 import UUIDs
+import YAML
 
 export start!, stop!
 
@@ -35,6 +38,7 @@ export start!, stop!
 #-----------------------------------------------------------------------------# __init__
 const rabbit_mq_channel = Ref{Any}() # TODO: replace Any with what AMQPClient.channel returns
 const server_url = Ref{String}()
+const openapi_spec = Ref{Dict{Any,Any}}()  # populated from https://github.com/DARPA-ASKEM/simulation-api-spec
 
 function __init__()
     if Threads.nthreads() == 1
@@ -53,6 +57,8 @@ function __init__()
     end
 
     server_url[] = "http://$SIMSERVICE_HOST:$SIMSERVICE_PORT"
+
+    openapi_spec[] = YAML.load_file(download("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml"))
 end
 
 #-----------------------------------------------------------------------------# start!
@@ -92,7 +98,7 @@ SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT"
 # Terrarium Data Service (TDS)
 SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
 SIMSERVICE_TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
-SIMSERVICE_TDS_RETRIES   = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
+SIMSERVICE_TDS_RETRIES          = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
 
 
 #-----------------------------------------------------------------------------# utils

@@ -33,6 +33,7 @@ using SimulationService
 end
 
 #-----------------------------------------------------------------------------# test routes
+# TODO: test that the openapi spec is valid
 @testset "Routes" begin
     host = "127.0.0.1"
     port = 8080
