@@ -4,9 +4,10 @@ import AMQPClient
 import DataFrames: DataFrame
 import Dates
 import DifferentialEquations
-import EasyConfig: Config
+import EasyConfig: EasyConfig, Config
 import EasyModelAnalysis
 import HTTP
+import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
 import MathML
@@ -67,21 +68,25 @@ end
 #-----------------------------------------------------------------------------# start!
 function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     Threads.nthreads() > 1 || error("Server require `Thread.nthreads() > 1`.  Start Julia via `julia --threads=auto`.")
+    SIMSERVICE_ENABLE_TDS || @warn "TDS is disabled.  Some features will not work."
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
     JobSchedulers.scheduler_start()
     JobSchedulers.set_scheduler(max_cpu=0.5, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     # routes:
-    Oxygen.@get "/" health
-    Oxygen.@post "/{operation_name}" operation
-    Oxygen.@get "/jobs/status/{job_id}" job_status
-    Oxygen.@get "/jobs/result/{job_id}" job_result
-    Oxygen.@post "/jobs/kill/{job_id}" job_kill
+    Oxygen.@get     "/"                         health
+    Oxygen.@post    "/{operation_name}"         operation
+    Oxygen.@get     "/jobs/status/{job_id}"     job_status
+    Oxygen.@get     "/jobs/results/{job_id}"     job_result
+    Oxygen.@post    "/jobs/kill/{job_id}"       job_kill
     # docs:
-    api = SwaggerMarkdown.OpenAPI("3.0", openapi_spec[])
-    swagger = SwaggerMarkdown.build(api)
-    Oxygen.mergeschema(swagger)
+    api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))
+
+    # Below commented out because of: https://github.com/JuliaData/YAML.jl/issues/117
+    # swagger = SwaggerMarkdown.build(api)
+    # Oxygen.mergeschema(swagger)
+
     # server:
     Oxygen.serveparallel(; host, port, async=true, kw...)
 end
@@ -97,26 +102,29 @@ end
 SIMSERVICE_HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
 SIMSERVICE_PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8000"))
 
-# RabbitMQ (host=localhost)
-SIMSERVICE_RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true"
-SIMSERVICE_RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
-SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
-SIMSERVICE_RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
-SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
-
 # Terrarium Data Service (TDS)
 SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
 SIMSERVICE_TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
 SIMSERVICE_TDS_RETRIES          = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
 
+# RabbitMQ (host=localhost)
+SIMSERVICE_RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
+SIMSERVICE_RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
+SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
+SIMSERVICE_RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
+SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
+
+
 
 #-----------------------------------------------------------------------------# utils
 JSON_HEADER = ["Content-Type" => "application/json"]
 
-get_json(url::String)::JSON3.Object = JSON3.read(HTTP.get(url, JSON_HEADER).body)
+get_json(url::String, T::Type=JSON3.Object) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
+
+jobhash(x::String) = reinterpret(Int, hash(x))
 
 # TODO: more tests.  This is an important function.
-function ode_system_from_amr(obj::JSON3.Object)
+function ode_system_from_amr(obj::Config)
     model = obj.model
     ode = obj.semantics.ode
 
@@ -157,25 +165,26 @@ function ode_system_from_amr(obj::JSON3.Object)
 end
 
 #-----------------------------------------------------------------------------# health: "GET /"
-health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE)
+health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE,
+                            SIMSERVICE_ENABLE_TDS)
 
 function job_status(::HTTP.Request, job_id::String)
-    job = JobSchedulers.job_query(job_id)
+    job = JobSchedulers.job_query(jobhash(job_id))
     return job.state
 end
 
 function job_result(::HTTP.Request, job_id::String)
-    job = JobSchedulers.job_query(job_id)
+    job = JobSchedulers.job_query(jobhash(job_id))
     JobSchedulers.result(job)
 end
 
-function job_kill(::HTTP.Request, job_id::String)
+function job_kill(request::HTTP.Request, job_id::String)
     try
-        job = JobSchedulers.job_query(job_id)
+        job = JobSchedulers.job_query(jobhash(job_id))
         JobSchedulers.cancel!(job)
-        return HTTP.Response(200)
+        return HTTP.Response(200; request)
     catch
-        return HTTP.Response(500)
+        return HTTP.Response(500; request)
     end
 end
 
@@ -218,57 +227,67 @@ abstract type Operation end
 #-----------------------------------------------------------------------------# OperationRequest
 # An OperationRequest contains all the information required to run an Operation
 # It's created immediately from a client request and we pass it around to keep all info together
+
+# endpoint:       required_keys...                      | optional_keys...
+    # /simulate:  (engine, model_config_id, timespan)   | extra
+    # /calibrate: (engine, model_config_id, dataset_id) | extra, timespan
+    # /ensemble:  (engine, model_config_ids, timespan)  | extra
 mutable struct OperationRequest{T <: Operation}
-    obj::JSON3.Object                   # Untouched JSON from request body
-    model_config_ids::Vector{UUIDs.UUID}
-    amr::Vector{JSON3.Object}           # ASKEM Model Representations associated with model_config_ids
-    timespan::Tuple{Float64, Float64}
-    df::DataFrame                       # empty if !haskey(obj, :dataset)
-    job_id::String                      # auto-generated in constructor
+    obj::Config         # untouched JSON from request body
+    required::Config    # required keys for endpoint
+    optional::Config    # optional keys for endpoint
+    amr::Union{Config, Vector{Config}}  # ASKEM Model Representation(s)
+    df::Union{Nothing, DataFrame}
+    timespan::Union{Nothing, Tuple{Float64, Float64}}
+    job_id::String
     operation_type::Type{T}
-    results::Any                        # results of solve(operation(::OperationRequest))
+    results::Any
 
-    function OperationRequest(req::HTTP.Request)
-        obj = JSON3.read(req.body)
-        model_config_ids = get_model_config_ids(obj)
-        amr = map(id -> get_json("$SIMSERVICE_TDS_URL/model_configurations/$id"), model_config_ids)
-        timespan = get_timespan(obj)
-        df = get_df(obj)
+    function OperationRequest(req::HTTP.Request, route::String)
+        @info "Creating OperationRequest: POST $route"
         job_id = "sciml-$(UUIDs.uuid4())"
-        operation_name = split(req.url.path, ",")[end]
-        operation_dict = Dict(lowercase(string(T)) => T for T in subtypes(Operation))
-        operation_type = operation_dict[operation_name]
+         # TODO: make operation_dict const
+        operation_dict = Dict(replace(lowercase(string(T)), "simulationservice." => "") => T for T in subtypes(Operation))
+        operation_type = operation_dict[route]
+        obj = JSON3.read(req.body, Config)
+        schema = openapi_spec[].paths["/$route"].post.requestBody.content."application/json".schema
+        required = Config(k => obj[k] for k in schema.required)
+        optional = Config(k => obj[k] for k in setdiff(schema.properties, schema.required))
+        amr = Config()
+        df = nothing
+        timespan = nothing
+        # EasyConfig.delete_empty!(obj)
+        for (k,v) in obj
+            if k == :model_config_id
+                amr = SIMSERVICE_ENABLE_TDS ?
+                    get_json("$SIMSERVICE_TDS_URL/model_configurations/$v", Config) :
+                    Config()
+            elseif k == :model_config_ids
+                amr = map(v) do id
+                    SIMSERVICE_ENABLE_TDS ?
+                        get_json("$SIMSERVICE_TDS_URL/model_configurations/$id", Config) :
+                        Config()
+                end
+            elseif k == :timespan
+                timespan = Tuple{Float64,Float64}(v)
+            elseif k == :dataset  # calibrate only.  keys(v) = (:id, :filename, :mappings)
+                if SIMSERVICE_ENABLE_TDS
+                    data_url = "$SIMSERVICE_TDS_URL/datasets/$(v.id)/download-url?filename=$(v.filename)"
+                    df = CSV.read(download(get_json(data_url).url), DataFrame)
+                    rename!(df, v.mappings)
+                else
+                    df = DataFrame()
+                end
 
-        new{operation_type}(obj, model_config_ids, amr, timespan, df, job_id, operation_type, nothing)
+            # Keys for testing only:
+            elseif k == :test_dataset  # local CSV file
+                df = CSV.read(v, DataFrame)
+            elseif k == :test_amr  # JSON
+                amr = v
+            end
+        end
+        new{operation_type}(obj, required, optional, amr, df, timespan, job_id, operation_type, nothing)
     end
-end
-
-function get_model_config_ids(obj::JSON3.Object)
-    if haskey(obj, :model_config_id)
-        return [UUID(obj.model_config_id)]
-   elseif haskey(obj, :model_config_ids)
-        return UUID.(obj.model_config_ids)
-   else
-       @warn "JSON request expected to have a `model_config_id` or `model_config_ids` key."
-   end
-end
-
-function get_timespan(obj::JSON3.Object)
-    if haskey(obj, :timespan)
-        map(float, (obj.timespan.start, obj.timespan.end))
-    else
-        @warn "JSON request doesn't contain `timespan`.  Setting to (0.0, 100.0)."
-        (0.0, 100.0)
-    end
-end
-
-function get_df(obj::JSON3.Object)
-    !haskey(obj, :dataset) && return DataFrame()
-    (; dataset_id, filename) = obj.dataset
-    data_url = "$SIMSERVICE_TDS_URL/datasets/$dataset_id/download-url?filename=$filename"
-    df = CSV.read(download(get_json(data_url).url), DataFrame)
-    rename!(df, Dict(obj.dataset.mappings))
-    return df
 end
 
 #--------------------------------------------------------------------# IntermediateResults callback
@@ -297,7 +316,7 @@ default_retry_contion(ex) = ex isa HTTP.Exceptions.StatusError && ex.status == 4
 
 function retry_n(f; n::Int=SIMSERVICE_TDS_RETRIES, sleep_between::Int=1, condition=default_retry_contion)
     res = nothing
-    for _ in 1:SIMSERVICE_TDS_UPDATE_RETRIES
+    for _ in 1:n
         try
             res = f()
             break
@@ -360,16 +379,22 @@ function solve!(o::OperationRequest)
 end
 
 #-----------------------------------------------------------------------------# POST /operation/{operation}
+last_operation = Ref{OperationRequest}()
+
 function operation(req::HTTP.Request, operation_name::String)
-    try
-        o = OperationRequest(req)
-        job = JobSchedulers.Job(@task(solve!(o)); id=o.job_id)
+    # try
+        o = OperationRequest(req, operation_name)
+        last_operation[] = o  # DEBUGGING
+        @info "Scheduling Job: $(o.job_id)"
+        job = JobSchedulers.Job(@task(solve!(o)))
+        job.id = jobhash(o.job_id)
         JobSchedulers.submit!(job)
+
         body = JSON3.write((; simulation_id = o.job_id))
-        return Response(201, ["Content-Type" => "application/json; charset=utf-8"]; body=body)
-    catch ex
-        return Response(500, ["Content-Type" => "application/json; charset=utf-8"]; body=JSON3.write((; error=string(ex))))
-    end
+        return HTTP.Response(201, ["Content-Type" => "application/json; charset=utf-8"], body; request=req)
+    # catch ex
+    #     return HTTP.Response(500, ["Content-Type" => "application/json; charset=utf-8"], JSON3.write((; error=string(ex))))
+    # end
 end
 
 
@@ -379,7 +404,7 @@ struct Simulate <: Operation
     timespan::Tuple{Float64, Float64}
 end
 
-Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(only(o.amr)), o.timespan)
+Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.amr), o.timespan)
 
 function solve(op::Simulate; kw...)
     prob = ODEProblem(op.sys, [], op.timespan, saveat=1)

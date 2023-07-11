@@ -18,3 +18,9 @@ Source is split into 5 major components:
   - `Available.jl`: The operations available to the API are here. Generally, the operations just wrap around by the exposed SciML
                     operations.
 - `operations`: JuliaHub primarily focuses here.
+
+## Requests
+
+An incoming request
+
+
