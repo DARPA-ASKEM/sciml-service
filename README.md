@@ -44,11 +44,6 @@ job_id = JSON3.read(res.body).simulation_id
 # Re-run this until `status_obj.status == "done"`
 status = JSON3.read(HTTP.get("$url/jobs/status/$job_id").body)
 
-# Get the result of the simulation job
-result = JSON3.read(HTTP.get("$url/jobs/results/$job_id").body)
-
 # close down server and scheduler
 stop!()
 ````
-
-To check available endpoints, try checking [localhost:8080/docs](localhost:8080/docs)

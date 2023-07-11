@@ -79,7 +79,6 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     Oxygen.@get     "/"                         health
     Oxygen.@post    "/{operation_name}"         operation
     Oxygen.@get     "/jobs/status/{job_id}"     job_status
-    Oxygen.@get     "/jobs/results/{job_id}"     job_result
     Oxygen.@post    "/jobs/kill/{job_id}"       job_kill
     # docs:
     api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))
@@ -179,13 +178,6 @@ health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE
 function job_status(::HTTP.Request, job_id::String)
     job = JobSchedulers.job_query(jobhash(job_id))
     return job.state
-end
-
-function job_result(request::HTTP.Request, job_id::String)
-    job = JobSchedulers.job_query(jobhash(job_id))
-    r = JobSchedulers.result(job)
-    HTTP.Response(200, r.header, r.body; request)
-
 end
 
 function job_kill(request::HTTP.Request, job_id::String)
@@ -361,7 +353,7 @@ function upload_results!(o::OperationRequest)
     isnothing(o.results_to_upload) && error("results_to_upload has not been set.")
 
     (; filename, header, body) = o.results_to_upload
-    SIMSERVICE_ENABLE_TDS || return no_tds(:upload_results!; filename, header, body)
+    SIMSERVICE_ENABLE_TDS || return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
 
     upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
     url = get_json(upload_url).url
@@ -376,7 +368,9 @@ function solve!(o::OperationRequest)
     o.results = solve(operation; callback)
     update_job_status!(o; status="complete", complete_time=time())
     o.results_to_upload = if o.results isa DataFrame
-        (body = CSV.write(o.results), filename = "result.csv", header = ["Content-Type" => "text/csv"])
+        io = IOBuffer()
+        CSV.write(io, o.results)
+        (body = String(take!(io)), filename = "result.csv", header = ["Content-Type" => "text/csv"])
     else
         (body = JSON3.write(o.results), filename = "result.json", header = JSON_HEADER)
     end
@@ -385,16 +379,20 @@ function solve!(o::OperationRequest)
 end
 
 #-----------------------------------------------------------------------------# POST /operation/{operation}
+# For debugging
 last_operation = Ref{OperationRequest}()
+last_job = Ref{JobSchedulers.Job}()
 
 function operation(req::HTTP.Request, operation_name::String)
     # try
         o = OperationRequest(req, operation_name)
-        last_operation[] = o  # DEBUGGING
         @info "Scheduling Job: $(o.job_id)"
         job = JobSchedulers.Job(@task(solve!(o)))
         job.id = jobhash(o.job_id)
         JobSchedulers.submit!(job)
+
+        last_operation[] = o    # For debugging
+        last_job[] = job        # For debugging
 
         body = JSON3.write((; simulation_id = o.job_id))
         return HTTP.Response(201, ["Content-Type" => "application/json; charset=utf-8"], body; request=req)
