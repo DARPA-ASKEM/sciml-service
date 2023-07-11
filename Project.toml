@@ -5,6 +5,7 @@ version = "0.6.0"
 
 [deps]
 AMQPClient = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"

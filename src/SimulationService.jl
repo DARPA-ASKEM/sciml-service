@@ -1,6 +1,7 @@
 module SimulationService
 
 import AMQPClient
+import CSV
 import DataFrames: DataFrame
 import Dates
 import DifferentialEquations
@@ -14,7 +15,7 @@ import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem
 import OpenAPI
 import Oxygen
-import SciMLBase: SciMLBase, solve
+import SciMLBase: SciMLBase, DiscreteCallback, solve
 import SwaggerMarkdown
 import UUIDs
 import YAML
@@ -103,18 +104,16 @@ SIMSERVICE_HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
 SIMSERVICE_PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8000"))
 
 # Terrarium Data Service (TDS)
-SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
+SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
 SIMSERVICE_TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
 SIMSERVICE_TDS_RETRIES          = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
 
-# RabbitMQ (host=localhost)
+# RabbitMQ (Note: assumes running on localhost)
 SIMSERVICE_RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
 SIMSERVICE_RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
 SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
 SIMSERVICE_RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
 SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
-
-
 
 #-----------------------------------------------------------------------------# utils
 JSON_HEADER = ["Content-Type" => "application/json"]
@@ -122,6 +121,15 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 get_json(url::String, T::Type=JSON3.Object) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
 
 jobhash(x::String) = reinterpret(Int, hash(x))
+
+# Print message when TDS unavailable, e.g. SIMSERVICE_ENABLE_TDS || no_tds(:myfunc; id="id", filename="result.csv")
+function no_tds(f; kw...)
+    msg = "TDS unavailable in function: `$f`\n"
+    for (k, v) in kw
+        msg *= "\n$k = $v"
+    end
+    @info msg
+end
 
 # TODO: more tests.  This is an important function.
 function ode_system_from_amr(obj::Config)
@@ -173,9 +181,11 @@ function job_status(::HTTP.Request, job_id::String)
     return job.state
 end
 
-function job_result(::HTTP.Request, job_id::String)
+function job_result(request::HTTP.Request, job_id::String)
     job = JobSchedulers.job_query(jobhash(job_id))
-    JobSchedulers.result(job)
+    r = JobSchedulers.result(job)
+    HTTP.Response(200, r.header, r.body; request)
+
 end
 
 function job_kill(request::HTTP.Request, job_id::String)
@@ -192,7 +202,7 @@ end
 # Content sent to client as JSON3.write(content)
 # If !SIMSERVICE_RABBITMQ_ENABLED, then just log the content
 function publish_to_rabbitmq(content)
-    SIMSERVICE_RABBITMQ_ENABLED || return @info "publish_to_rabbitmq: $(JSON3.write(content)))"
+    SIMSERVICE_RABBITMQ_ENABLED || return no_tds(:publish_to_rabbitmq; content)
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
     AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
@@ -241,7 +251,8 @@ mutable struct OperationRequest{T <: Operation}
     timespan::Union{Nothing, Tuple{Float64, Float64}}
     job_id::String
     operation_type::Type{T}
-    results::Any
+    results::Any # result of solving operaiont
+    results_to_upload::Any  # processed results to send back to client (body, header, filename)
 
     function OperationRequest(req::HTTP.Request, route::String)
         @info "Creating OperationRequest: POST $route"
@@ -286,7 +297,7 @@ mutable struct OperationRequest{T <: Operation}
                 amr = v
             end
         end
-        new{operation_type}(obj, required, optional, amr, df, timespan, job_id, operation_type, nothing)
+        new{operation_type}(obj, required, optional, amr, df, timespan, job_id, operation_type, nothing, nothing)
     end
 end
 
@@ -333,7 +344,7 @@ function retry_n(f; n::Int=SIMSERVICE_TDS_RETRIES, sleep_between::Int=1, conditi
 end
 
 function update_job_status!(o::OperationRequest; kw...)
-    SIMSERVICE_ENABLE_TDS || return @info "update_job_status!: $kw"
+    SIMSERVICE_ENABLE_TDS || return no_tds(:update_job_status!; kw...)
     job_id = o.job_id
     url = "$SIMSERVICE_TDS_URL/simulations/$job_id"  # joshday: rename simulations => jobs?
     obj = retry_n(() -> get_json(url))
@@ -347,24 +358,14 @@ end
 
 function upload_results!(o::OperationRequest)
     isnothing(o.results) && error("No results.  Run `solve!(o)` first.")
+    isnothing(o.results_to_upload) && error("results_to_upload has not been set.")
 
-    if o.results isa DataFrame
-        body = CSV.write(o.results)
-        filename = "result.csv"
-        header = ["Content-Type" => "text/csv"]
-    else
-        body = JSON3.write(o.results)
-        filename = "result.json"
-        header = JSON_HEADER
-    end
+    (; filename, header, body) = o.results_to_upload
+    SIMSERVICE_ENABLE_TDS || return no_tds(:upload_results!; filename, header, body)
 
-    upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$job_id/upload-url?filename=$filename"
+    upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
     url = get_json(upload_url).url
-    if SIMSERVICE_ENABLE_TDS
-        HTTP.put(url, header; body=body)
-    else
-        @info "upload_results!: $body"
-    end
+    HTTP.put(url, header; body=body)
 end
 
 #-----------------------------------------------------------------------------# solve!
@@ -373,9 +374,14 @@ function solve!(o::OperationRequest)
     operation = o.operation_type(o)
     callback = get_callback(o)
     o.results = solve(operation; callback)
-    upload_results!(o)
     update_job_status!(o; status="complete", complete_time=time())
-    return o.result
+    o.results_to_upload = if o.results isa DataFrame
+        (body = CSV.write(o.results), filename = "result.csv", header = ["Content-Type" => "text/csv"])
+    else
+        (body = JSON3.write(o.results), filename = "result.json", header = JSON_HEADER)
+    end
+    upload_results!(o)
+    return o.results_to_upload
 end
 
 #-----------------------------------------------------------------------------# POST /operation/{operation}
