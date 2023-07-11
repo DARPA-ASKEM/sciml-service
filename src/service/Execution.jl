@@ -36,15 +36,18 @@ function contextualize_prog(context)
             if settings["ENABLE_TDS"]
                 update_simulation(context.job_id, Dict([:status=>"error"]))
             end
-            throw(exception)
+            rethrow(exception)
         end
     end
 end
 
+# Coerce request object to dict
+make_deterministic_run(req::Request, operation::String) = make_deterministic_run(json(req, Dict{Symbol, Any}), operation)
+
 """
 Schedule a sim run given an operation
 """
-function make_deterministic_run(req::Request, operation::String)
+function make_deterministic_run(args, operation::String)
     # TODO(five): Spawn remote workers and run jobs on them
     if !in(operation, keys(available_operations))
         return Response(
@@ -56,7 +59,6 @@ function make_deterministic_run(req::Request, operation::String)
 
     publish_hook = settings["RABBITMQ_ENABLED"] ? publish_to_rabbitmq : (_...) -> nothing
 
-    args = json(req, Dict{Symbol,Any})
     context = Context(
         generate_id(),
         publish_hook,  

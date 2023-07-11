@@ -31,7 +31,13 @@ function prepare_input(args; context...)
         args[:model] = fetch_model(args[:model_config_id])
     end
     if in(:dataset, keys(args)) && !isa(args[:dataset], String)
-        args[:dataset] = fetch_dataset(args[:dataset]["id"], args[:dataset]["filename"], get(args[:dataset], "mappings", Dict()))
+        if !isa(args[:dataset], String)
+            args[:dataset] = fetch_dataset(args[:dataset]["id"], args[:dataset]["filename"], get(args[:dataset], "mappings", Dict()))
+        else
+            io = IOBuffer(args[:dataset])
+            seekstart(io)
+            args[:dataset] = CSV.read(io, DataFrame)
+        end
     end
     if in(:model_config_ids, keys(args))
         args[:models] = fetch_model.(map(string, args[:model_ids]))
