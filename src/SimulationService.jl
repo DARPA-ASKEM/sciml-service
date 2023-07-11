@@ -1,14 +1,46 @@
 module SimulationService
 
-
-import DataFrames: DataFrame
-using EasyConfig: EasyConfig
+using AMQPClient: AMQPClient
+using DataFrames: DataFrame
+using Dates: Dates
+using EasyConfig: Config
 using HTTP: HTTP
+using JobSchedulers: JobSchedulers
 using JSON3: JSON3
 using ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem
 using Oxygen: Oxygen
+using SciMLBase: SciMLBase
+using UUIDs
 
 export start!, stop!
+
+#-----------------------------------------------------------------------------# notes
+# Example request to /operation/{op}:
+# {
+#   "model_config_id": "22739963-0f82-4d6f-aecc-1082712ed299",
+#   "timespan": {"start":0, "end":90},
+#   "engine": "sciml",
+#   "dataset": {
+#     "dataset_id": "adfasdf",
+#     "mappings": [], #optional column mappings... renames column headers
+#     "filename":"asdfa",
+#     }
+# }
+
+#-----------------------------------------------------------------------------# __init__
+const rabbit_mq_channel = Ref{Any}()
+
+function __init__()
+    # RabbitMQ Channel
+    auth_params = Dict{String,Any}(
+        "MECHANISM" => "AMQPLAIN",
+        "LOGIN" => SIMSERVICE_RABBITMQ_LOGIN,
+        "PASSWORD" => SIMSERVICE_RABBITMQ_PASSWORD,
+    )
+
+    conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=SIMSERVICE_RABBITMQ_PORT, auth_params)
+    rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
+end
 
 #-----------------------------------------------------------------------------# start!
 function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
@@ -16,9 +48,8 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     Threads.nthreads() > 1 || error("Server require `Thread.nthreads() > 1`.  Start Julia via `julia --threads=auto`.")
     Oxygen.resetstate()
     Oxygen.@get "/" health
-    Oxygen.@post "/simulate" req -> simulate(process_request(req))
-    Oxygen.@post "/calibrate" req -> calibrate(process_request(req))
-    Oxygen.@post "/ensemble" req -> ensemble(process_request(req))
+    Oxygen.@get "/status/{job_id}" req -> status(req, job_id)
+    Oxygen.@post "/operation/{operation}" req -> true # TODO
     Oxygen.serveparallel(; host, port, kw...)
 end
 
@@ -32,7 +63,7 @@ end
 SIMSERVICE_HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
 SIMSERVICE_PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8000"))
 
-# RabbitMQ
+# RabbitMQ (host=localhost)
 SIMSERVICE_RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true"
 SIMSERVICE_RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
 SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
@@ -44,111 +75,233 @@ SIMSERVICE_ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "
 SIMSERVICE_TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
 
 
-#-----------------------------------------------------------------------------# S3 uploaders
+#-----------------------------------------------------------------------------# utils
 JSON_HEADER = ["Content-Type" => "application/json"]
 
-function get_upload_url(job_id::String, name::String, ext::String)
-    url = string(SIMSERVICE_TDS_URL, "/simulations/sciml-$job_id/upload-url?filename=$name.$ext")
-    res = HTTP.get(url, JSON_HEADER)
-    return JSON3.read(res.body).url
-end
+get_json(url::String)::JSON3.Object = JSON3.read(HTTP.get(url, JSON_HEADER).body)
 
-# DataFrame -> CSV
-# Other -> JSON
-function upload(output, job_id::String; name::String="result")
-    if SIMSERVICE_ENABLE_TDS
-        return @warn "TDS is not enabled.  `output::$(typeof(output))` will not be uploaded.))"
+#--------------------------------------------------------------------------# Terrarium Data Service
+# DataFrame saved as CSV
+# Everything else saved as JSON
+function tds_upload(x, job_id::String; name::String="result")
+    if !SIMSERVICE_ENABLE_TDS
+        return @warn "TDS is not enabled.  `x::$(typeof(x))` will not be uploaded.))"
     end
-    ext = output isa DataFrame ? "csv" : "json"
-    body = output isa DataFrame ? CSV.write(output) : JSON3.write(output)
-    url = get_upload_url(job_id, name, ext)
+    ext = x isa DataFrame ? "csv" : "json"
+    body = x isa DataFrame ? CSV.write(x) : JSON3.write(x)
+    upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$job_id/upload-url?filename=$name.$ext"
+    url = get_json(upload_url)
     HTTP.put(url, JSON_HEADER; body)
     return first(split(url, '?'))
 end
 
+function tds_update_job(job_id::String, updated_fields::Dict{Symbol})
+    uuid = gen_uuid(job_id)
+    response = nothing
+    remaining_retries = 10 # TODO(five)??: Set this with environment variable
+    while remaining_retries != 0
+        remaining_retries -= 1
+        sleep(2)
+        try
+            response = HTTP.get("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"])
+            break
+        catch exception
+            if isa(exception,HTTP.Exceptions.StatusError) && exception.status == 404
+                response = nothing
+            else
+                throw(exception)
+            end
+        end
+    end
+    if isnothing(response)
+            throw("Job cannot finish because it does not exist in TDS")
+    end
+    body = response.body |> Dict ∘ JSON.read ∘ String
+    for field in updated_fields
+        body[field.first] = field.second
+    end
+    HTTP.put("$(settings["TDS_URL"])/simulations/$uuid", ["Content-Type" => "application/json"], body=JSON.write(body))
+end
+
 #-----------------------------------------------------------------------------# health: "GET /"
-function health(::HTTP.Request)
-    return (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE)
+health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE)
+
+#-----------------------------------------------------------------------------# RabbitMQ
+# Content sent to client as JSON3.write(content)
+# If !SIMSERVICE_RABBITMQ_ENABLED, then just log the content
+function publish_to_rabbitmq(content)
+    SIMSERVICE_RABBITMQ_ENABLED || return @info "publish_to_rabbitmq: $(JSON3.write(content)))"
+    json = Vector{UInt8}(codeunits(JSON3.write(content)))
+    message = AMQPClient.Message(json, content_type="application/json")
+    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
+end
+publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
+
+#-----------------------------------------------------------------------------# IntermediateResults
+# Publish intermediate results to RabbitMQ with at least `every` seconds inbetween callbacks
+mutable struct IntermediateResults
+    last_callback::Dates.DateTime  # Track the last time the callback was called
+    every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
+    job_id::String
+
+    function IntermediateResults(job_id::String; every=Dates.Second(5))
+        new(typemin(Dates.DateTime), every, job_id)
+    end
 end
 
-#-----------------------------------------------------------------------------# ModelRepresentation
-struct ModelRepresentation
-    obj::JSON3.Object           # Exact JSON object from the request
-    config::EasyConfig.Config   # Like `obj` but with stuff filled in
+function (o::IntermediateResults)(integrator)
+    if o.last_callback + o.every ≤ Dates.now()
+        o.last_callback = Dates.now()
+        (; iter, t, u, uprev) = integrator
+        publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=norm(u - uprev), job_id=o.jobid,
+            retcode=SciMLBase.check_error(integrator))
+    end
 end
 
-function ModelRepresentation(req::HTTP.Request)
-    obj = JSON3.read(req.body)
-    c = EasyConfig.Config(k => _get(Val(k), v) for (k, v) in pairs(obj))
-    ModelRepresentation(obj, c)
+get_callback(job_id::String) = DiscreteCallback((args...) -> true, IntermediateResults(job_id))
+
+
+#-----------------------------------------------------------------------------# OperationRequest
+### Example of `obj` inside an OperationRequest ###
+# {
+#   "model_config_id": "22739963-0f82-4d6f-aecc-1082712ed299",
+#   "timespan": {"start":0, "end":90},
+#   "engine": "sciml",
+#   "dataset": {
+#     "dataset_id": "adfasdf",
+#     "mappings": [], #optional column mappings... renames column headers
+#     "filename":"asdfa",
+#     }
+# }
+
+# ASKEM Model Representation: https://github.com/DARPA-ASKEM/Model-Representations/blob/main/petrinet/petrinet_schema.json
+struct OperationRequest{Operation}
+    obj::JSON3.Object                   # Untouched JSON from request body
+    model_config_ids::Vector{UUID}
+    amr::Vector{JSON3.Object}           # ASKEM Model Representations
+    timespan::Tuple{Float64, Float64}
+    df::DataFrame                       # empty if !haskey(obj, :dataset)
+    job_id::String
+
+    function OperationRequest(req::HTTP.Request)
+        obj = JSON3.read(req.body)
+        model_config_ids = get_model_config_ids(obj)
+        amr = map(id -> get_json("$SIMSERVICE_TDS_URL/model_configurations/$id"), model_config_ids)
+        timespan = get_timespan(obj)
+        df = get_df(obj)
+        operation = Symbol(split(req.url.path, "/")[end])
+        job_id = "sciml-$(UUIDs.uuid4())"
+
+        return new{operation}(obj, model_config_ids, amr, timespan, df, job_id)
+    end
 end
 
-# fallback to identity
-_get(::Val, val) = val
+function get_model_config_ids(obj::JSON3.Object)
+    if haskey(obj, :model_config_id)
+        return [UUID(obj.model_config_id)]
+   elseif haskey(obj, :model_config_ids)
+        return UUID.(obj.model_config_ids)
+   else
+       error("JSON request to have a `model_config_id` or `model_config_ids` key.")
+   end
+end
 
-# dataset
-_get(::Val{:dataset}, val::String) = CSV.read(IOBuffer(val), DataFrame)
+function get_timespan(obj::JSON3.Object)
+    if haskey(obj, :timespan)
+        map(float, (obj.timespan.start, obj.timespan.end))
+    else
+        @warn "JSON request doesn't contain `timespan`.  Setting to (0.0, 100.0)."
+        (0.0, 100.0)
+    end
+end
 
-# models
-_get(::Val{:models}, val) = _get.(Val{:model}, val)
+function get_df(obj::JSON3.Object)
+    !haskey(obj, :dataset) && return DataFrame()
+    (; dataset_id, filename) = obj.dataset
+    data_url = string(SIMSERVICE_TDS_URL, "/datasets/$dataset_id/download-url?filename=$filename")
+    df = CSV.read(download(get_json(data_url).url), DataFrame)
+    rename!(df, Dict(obj.dataset.mappings))
+    return df
+end
 
-# model
-function _get(::Val{:model}, val)
-    return val
-    obj = JSON3.read(val)
+#-----------------------------------------------------------------------------# schedule
+function Base.schedule(o::OperationRequest{T}) where {T}
+    if T ∉ [:simulate, :calibrate, :ensemble]
+        return Response(404, ["Content-Type" => "text/plain; charset=utf-8"], body="Operation $T not found.")
+    end
+
+    body = JSON3.write((; simulation_id = o.job_id))
+    return Response(201, ["Content-Type" => "application/json; charset=utf-8"]; body=body)
+
+    #     publish_hook = settings["RABBITMQ_ENABLED"] ? publish_to_rabbitmq : (_...) -> nothing
+
+    #     args = json(req, Dict{Symbol,Any})
+    #     context = Context(
+    #         generate_id(),
+    #         publish_hook,
+    #         Symbol(operation),
+    #         args
+    #     )
+    #     prog = contextualize_prog(context)
+    #     sim_run = Job(@task(prog(args)))
+    #     sim_run.id = context.job_id
+    #     submit!(sim_run)
+    #     uuid = "sciml-" * string(UUID(sim_run.id))
+    #     Response(
+    #         201,
+    #         ["Content-Type" => "application/json; charset=utf-8"],
+    #         body=JSON.write("simulation_id" => uuid)
+    #     )
+    # end
+end
+
+#-----------------------------------------------------------------------------# simulate
+function run(o::OperationRequest{:simulate})
+    sys = ode_system_from_amr(only(o.amr))
+    callback = get_callback(o.job_id)
+    sol = solve(prob; progress = true, progress_steps = 1, callback)
+    return DataFrame(sol)
+end
+
+
+function ode_system_from_amr(obj::JSON3.Object)
     model = obj.model
     ode = obj.semantics.ode
 
     t = only(@variables t)
     D = Differential(t)
 
-    statenames = [Symbol(s["id"]) for s in model["states"]]
+    statenames = [Symbol(s.id) for s in model.states]
     statevars  = [only(@variables $s) for s in statenames]
     statefuncs = [only(@variables $s(t)) for s in statenames]
 
     # get parameter values and state initial values
-    paramnames = [Symbol(x["id"]) for x in ode["parameters"]]
+    paramnames = [Symbol(x.id) for x in ode.parameters]
     paramvars = [only(@parameters $x) for x in paramnames]
-    paramvals = [x["value"] for x in ode["parameters"]]
+    paramvals = [x.value for x in ode.parameters]
     sym_defs = paramvars .=> paramvals
-    initial_exprs = [MathML.parse_str(x["expression_mathml"]) for x in ode["initials"]]
-    initial_vals = map(x->substitute(x, sym_defs), initial_exprs)
+    initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
+    initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
 
     # build equations from transitions and rate expressions
-    rates = Dict(Symbol(x["target"]) => MathML.parse_str(x["expression_mathml"]) for x in ode["rates"])
+    rates = Dict(Symbol(x.target) => MathML.parse_str(x.expression_mathml) for x in ode.rates)
     eqs = Dict(s => Num(0) for s in statenames)
-    for tr in model["transitions"]
-        ratelaw = rates[Symbol(tr["id"])]
-        for s in tr["input"]
+    for tr in model.transitions
+        ratelaw = rates[Symbol(tr.id)]
+        for s in tr.input
             s = Symbol(s)
             eqs[s] = eqs[s] - ratelaw
         end
-        for s in tr["output"]
+        for s in tr.output
             s = Symbol(s)
             eqs[s] = eqs[s] + ratelaw
         end
     end
 
-    subst = Dict(zip(statevars, statefuncs))
-    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in zip(statenames, statefuncs)]
+    subst = Dict(statevars .=> statefuncs)
+    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
 
-    ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj["name"]))
-end
-
-
-#-----------------------------------------------------------------------------# simulate
-function simulate(m::ModelRepresentation)
-    "TODO"
-end
-
-#-----------------------------------------------------------------------------# calibrate
-function calibrate(m::ModelRepresentation)
-    "TODO"
-end
-
-#-----------------------------------------------------------------------------# ensemble
-function ensemble(m::ModelRepresentation)
-    "TODO"
+    ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name))
 end
 
 
@@ -223,4 +376,4 @@ end
 #     terminate()
 # end
 
-end # module SimulationService
+end # module
