@@ -79,11 +79,11 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     JobSchedulers.set_scheduler(max_cpu=0.5, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     # routes:
-    Oxygen.@get     "/"                     health
-    Oxygen.@get     "/status/{job_id}"     job_status
-    Oxygen.@get     "/result/{job_id}"     job_result
-    Oxygen.@post    "/{operation_name}"     operation
-    Oxygen.@post    "/kill/{job_id}"       job_kill
+    Oxygen.@get     "/"                 health
+    Oxygen.@get     "/status/{job_id}"  job_status
+    Oxygen.@get     "/result/{job_id}"  job_result
+    Oxygen.@post    "/{operation_name}" operation
+    Oxygen.@post    "/kill/{job_id}"    job_kill
 
     # Below commented out because of: https://github.com/JuliaData/YAML.jl/issues/117 ????
     # api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))

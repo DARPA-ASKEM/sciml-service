@@ -89,7 +89,7 @@ all the necessary info for running/solving the model and returning results.
 2. We process the keys into useful things for `OperationRequest`
     - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::Config` in `OperationRequest`).
     - `dataset` --> Retrieve dataset from TDS (`df::DataFrame` in `OperationRequest`).
-3. We start the job, which performs:
+3. We start the job via JobSchedulers.jl, which performs:
     a. Update job status in TDS to "running".
     b. Run/solve the model/simulation.
     c. Upload results to TDS.
