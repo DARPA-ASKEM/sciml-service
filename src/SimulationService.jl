@@ -40,6 +40,8 @@ export start!, stop!
 
 # pre-rewrite commit: https://github.com/DARPA-ASKEM/simulation-service/tree/8e4dfc515fd6ddf53067fa535e37450daf1cd63c
 
+# OpenAPI spec: https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml
+
 #-----------------------------------------------------------------------------# __init__
 const rabbit_mq_channel = Ref{Any}() # TODO: replace Any with what AMQPClient.channel returns
 const server_url = Ref{String}()
@@ -306,9 +308,11 @@ mutable struct OperationRequest{T <: Operation}
                 end
 
             # Keys for testing only:
-            elseif k == :test_dataset  # local CSV file
+            elseif k == :csv
+                df = CSV.read(codeunits(v), DataFrame)
+            elseif k == :local_csv  # local CSV file
                 df = CSV.read(v, DataFrame)
-            elseif k == :test_amr  # JSON
+            elseif k == :model  # JSON
                 amr = v
             end
         end
