@@ -291,16 +291,16 @@ mutable struct OperationRequest{T <: Operation}
         for (k,v) in obj
             if k == :model_config_id
                 model = SIMSERVICE_ENABLE_TDS ?
-                    get_json("$SIMSERVICE_TDS_URL/model_configurations/$v", Config) :
+                    get_json("$SIMSERVICE_TDS_URL/model_configurations/$v") :
                     Config()
             elseif k == :model_config_ids
                 model = map(v) do id
                     SIMSERVICE_ENABLE_TDS ?
-                        get_json("$SIMSERVICE_TDS_URL/model_configurations/$id", Config) :
+                        get_json("$SIMSERVICE_TDS_URL/model_configurations/$id") :
                         Config()
                 end
             elseif k == :timespan
-                timespan = Tuple{Float64,Float64}(v)
+                timespan = (Float64(v["start"]), Float64(v["end"]))
             elseif k == :dataset  # calibrate only.  keys(v) = (:id, :filename, :mappings)
                 if SIMSERVICE_ENABLE_TDS
                     tds_url = "$SIMSERVICE_TDS_URL/datasets/$(v.id)/download-url?filename=$(v.filename)"
