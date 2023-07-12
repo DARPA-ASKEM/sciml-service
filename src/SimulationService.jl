@@ -71,7 +71,6 @@ end
 
 #-----------------------------------------------------------------------------# start!
 function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
-    Threads.nthreads() > 1 || error("Server require `Thread.nthreads() > 1`.  Start Julia via `julia --threads=auto`.")
     SIMSERVICE_ENABLE_TDS || @warn "TDS is disabled.  Some features will not work."
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
@@ -91,7 +90,12 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     # Oxygen.mergeschema(swagger)
 
     # server:
-    Oxygen.serveparallel(; host, port, async=true, kw...)
+    if Threads.nthreads() > 1  # true in production
+        Oxygen.serveparallel(; host, port, async=true, kw...)
+    else
+        @warn "Server starting single-threaded.  This should only be used for testing. Try starting Julia via `julia --threads=auto`."
+        Oxygen.serve(; host, port, async=true, kw...)
+    end
 end
 
 #-----------------------------------------------------------------------------# stop!
