@@ -1,7 +1,8 @@
-# Simulation Service
-Simulation Service provides an interface and job runner for [ASKEM models](https://github.com/DARPA-ASKEM/Model-Representations).
+# SimulationService.jl
 
-See example payload at [./examples/request.json](./examples/request.json)
+Simulation Service runs a REST API for running jobs in the [ASKEM Model Representation](https://github.com/DARPA-ASKEM/Model-Representations).
+
+See example payloads in the `./examples` directory.
 
 ## Development Environment
 
@@ -90,10 +91,10 @@ all the necessary info for running/solving the model and returning results.
     - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::Config` in `OperationRequest`).
     - `dataset` --> Retrieve dataset from TDS (`df::DataFrame` in `OperationRequest`).
 3. We start the job via JobSchedulers.jl, which performs:
-    a. Update job status in TDS to "running".
-    b. Run/solve the model/simulation.
-    c. Upload results to S3.
-    d. Update job status in TDS to "complete".
+    - Update job status in TDS to "running".
+    - Run/solve the model/simulation.
+    - Upload results to S3.
+    - Update job status in TDS to "complete".
 4. Return a 201 response (above job runs async) with JSON that holds the `simulation_id` (client's term), which we call `job_id`.
 
 
