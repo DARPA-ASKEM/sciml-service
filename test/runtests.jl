@@ -1,27 +1,81 @@
 using Test
-using Downloads: download
+using DataFrames
+using EasyConfig
 using HTTP
 using JSON3
-using SimulationService
-# using SafeTestsets
+using Oxygen
+using SciMLBase: solve
 
+using SimulationService
+
+SimulationService.SIMSERVICE_ENABLE_TDS = false
 
 #-----------------------------------------------------------------------------# Operations
 @testset "Operations" begin
     @testset "simulate" begin
         url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        json_string = read(download(url), String)
-        model = SimulationService.Service.Execution.Interface.Available.ProblemInputs.coerce_model(json_string)
-        f = SimulationService.Service.Execution.Interface.Available.get_operation(:simulate)
-        f(; model, context=nothing)
+        obj = SimulationService.get_json(url)
+        sys = SimulationService.ode_system_from_amr(obj)
+        op = SimulationService.Simulate(sys, (0.0, 100.0))
+        df = solve(op)
+        @test df isa DataFrame
+        @test extrema(df.timestamp) == (0.0, 100.0)
     end
+
     @testset "calibrate" begin
         # TODO
     end
+
     @testset "ensemble" begin
         # TODO
     end
 end
 
+#-----------------------------------------------------------------------------# test routes
+@testset "Server Routes" begin
+    SimulationService.SIMSERVICE_ENABLE_TDS = false
+    start!()
 
-# @safetestset "sciml" begin include("sciml.jl") end
+    url = SimulationService.server_url[]
+
+    sleep(1) # wait for server to start
+
+    @testset "/" begin
+        res = HTTP.get(url)
+        @test res.status == 200
+        @test JSON3.read(res.body).status == "ok"
+    end
+
+    @testset "/simulate" begin
+        file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
+        amr = JSON3.read(read(file), Config)
+        json = Config(test_amr = amr, timespan=(0, 90))
+        body = JSON3.write(json)
+        res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=body)
+        @test res.status == 201
+
+        done_or_failed = false
+        job_id = JSON3.read(res.body).simulation_id
+        while !done_or_failed
+            status = JSON3.read(HTTP.get("$url/status/$job_id").body)
+            if status.status == "complete"
+                @test true
+                done_or_failed = true
+            elseif status.status == "error"
+                @test false
+                done_or_failed = true
+            end
+            sleep(1)
+        end
+    end
+
+    @testset "/calibrate" begin
+        @test true # TODO
+    end
+
+    @testset "/ensemble" begin
+        @test true # TODO
+    end
+
+    stop!()
+end

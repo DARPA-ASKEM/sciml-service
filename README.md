@@ -1,34 +1,109 @@
-# Simulation Service
-Simulation Service provides an interface and job runner for [ASKEM models](https://github.com/DARPA-ASKEM/Model-Representations). 
+# SimulationService.jl
 
-See example payload at [./examples/request.json](./examples/request.json)
+Simulation Service runs a REST API for running jobs in the [ASKEM Model Representation](https://github.com/DARPA-ASKEM/Model-Representations).
 
-## Usage
+See example payloads in the `./examples` directory.
 
-With docker compose: 
+## Development Environment
+
+```julia
+using Revise  # auto-update the server with your changes
+using SimulationService
+SimulationService.SIMSERVICE_ENABLE_TDS = false  # opt out of Terrarium Data Service
+
+start!()  # run server
+
+# make code changes that you want to test...
+
+start!()  # Replaces the running server with your changes
+```
+
+## Run Server via Docker
+
 ```
 docker compose --file docker/docker-compose.yml up --build
 ```
 
-With Julia REPL assuming you want to run it standalone:
+## Example Request with Local Server in Julia
 
+```julia
+using SimulationService, HTTP, JSON3, EasyConfig
+
+# Start the server/job scheduler without Terrarium Data Service
+SimulationService.SIMSERVICE_ENABLE_TDS = false
+start!()
+
+url = SimulationService.server_url[]  # server url
+@info JSON3.read(HTTP.get(url).body) # Is server running? (status == "ok")
+
+# JSON in ASKEM Model Representation
+model = JSON3.read(read("./examples/BIOMD0000000955_askenet.json"), Config)
+
+# You can directly provide AMR JSON with the `test_amr` key
+# (Note: this does not look like a request that would be seen in production)
+json = Config(model = model, timespan=(0, 90))
+
+body = JSON3.write(json)
+
+# Kick off the simulation job
+res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=body)
+
+# Get the `job_id` so we can query the job status and get results
+job_id = JSON3.read(res.body).simulation_id
+
+# Re-run this until `status_obj.status == "done"`
+status = JSON3.read(HTTP.get("$url/jobs/status/$job_id").body)
+
+# close down server and scheduler
+stop!()
 ```
->> export ENABLE_TDS=false # Include if you would like to disable backend services
->> julia --project --threads 15 # We need multithreading
-julia> using SimulationService, HTTP
-julia> import JSON3 as JSON
-julia> start!()
-julia> model_json = String(read("./examples/BIOMD0000000955_askenet.json"))
-julia> # Let's do a simulate
-julia> operation = "simulate"
-julia> operation_args = Dict(:model=> model_json, :timespan => Dict("start" => 0, "end" => 90)) # should match up to what's in Availble.jl
-julia> simulation = SimulationService.make_deterministic_run(operation_args, operation)
-julia> simulation_id = JSON.read(String(simulation.body)).simulation_id
-julia> status = SimulationService.retrieve_job(nothing, simulation_id, "status") # rerun until complete
-julia> result = SimulationService.retrieve_job(nothing, simulation_id, "result")
-julia> # output of REST API and Scheduler
-julia> stop!()
-julia> # you may safely leave the repl or rerun `start!`
-````
 
-To check available endpoints, try checking [localhost:8080/docs](localhost:8080/docs)
+## Incoming Requests
+
+The OpenAPI spec [here](https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml) is the source of truth.  See the JSON files in `./examples` that begin with `request-...`.
+
+Here's a summary of what the JSON should like in a request:
+
+1. Every request should contain `"engine": "sciml"`
+2. Endpoint-specific keys:
+    - `/simulate`
+        - Required: `model_config_id`, `timespan`
+        - Optional: `extra`
+    - `/calibrate`
+        - Required: `model_config_id`, `dataset`
+        - Optional: `extra`, `timespan`
+    - `/ensemble`
+        - Required: `model_config_ids`, `timespan`
+        - Optional: `extra`
+3. Additional keys (for testing/when TDS is disabled).
+    - `csv`: A String containing the contents of a CSV file.
+    - `local_csv`: The file path of a CSV file, local to where the server is running.
+    - `model`: JSON object in the The ASKEM Model Representation (AMR) format.
+
+### How Incoming Requests are Processed
+
+An incoming `HTTP.Request` gets turned into a `SimulationService.OperationRequest` object that holds
+all the necessary info for running/solving the model and returning results.
+
+
+1. Request arrives
+2. We process the keys into useful things for `OperationRequest`
+    - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::Config` in `OperationRequest`).
+    - `dataset` --> Retrieve dataset from TDS (`df::DataFrame` in `OperationRequest`).
+3. We start the job via JobSchedulers.jl, which performs:
+    - Update job status in TDS to "running".
+    - Run/solve the model/simulation.
+    - Upload results to S3.
+    - Update job status in TDS to "complete".
+4. Return a 201 response (above job runs async) with JSON that holds the `simulation_id` (client's term), which we call `job_id`.
+
+
+## Architecture
+
+The Simulation Service (soon to be renamed SciML Service) is a REST API that wraps
+specific SciML tasks. The service should match the spec [here](https://github.com/DARPA-ASKEM/simulation-api-spec)
+since PyCIEMSS Service and SciML Service ideally are hot swappable.
+
+The API creates a job using the JobSchedulers.jl library and updates the Terarium Data Service (TDS) with the status
+of the job throughout its execution. Once the job completes, the results are written to S3. With most of the output artifacts, we do little postprocessing
+after completing the SciML portion.
