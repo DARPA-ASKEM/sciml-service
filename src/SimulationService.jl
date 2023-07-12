@@ -382,12 +382,18 @@ function upload_results!(o::OperationRequest)
     o.results_to_upload = if o.results isa DataFrame
         io = IOBuffer()
         CSV.write(io, o.results)
-        (body = String(take!(io)), filename = "result.csv", header = ["Content-Type" => "text/csv"])
+        body = String(take!(io))
+        filename = "result.csv"
+        header = ["Content-Type" => "text/csv"]
     else
-        (body = JSON3.write(o.results), filename = "result.json", header = JSON_HEADER)
+        body = JSON3.write(o.results)
+        filename = "result.json"
+        header = JSON_HEADER
     end
 
-    SIMSERVICE_ENABLE_TDS || return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
+    if !SIMSERVICE_ENABLE_TDS
+        return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
+    end
 
     upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
     url = get_json(upload_url).url
@@ -396,21 +402,25 @@ end
 
 #-----------------------------------------------------------------------------# solve!
 function solve!(o::OperationRequest)
-    update_job_status!(o; status="running", start_time=time())
-    operation = o.operation_type(o)
-    callback = get_callback(o)
-    o.results = solve(operation; callback)
-    upload_results!(o)
-    update_job_status!(o; status="complete", complete_time=time())
-    return o.results_to_upload
+    try
+        update_job_status!(o; status="running", start_time=time())
+        operation = o.operation_type(o)
+        callback = get_callback(o)
+        o.results = solve(operation; callback)
+        upload_results!(o)
+        update_job_status!(o; status="complete", complete_time=time())
+        return o.results_to_upload
+    catch ex
+        update_job_status!(o; status="error", error=string(ex))
+    end
 end
 
 #-----------------------------------------------------------------------------# POST /{operation}
-# For debugging
+# For debugging.  When a job fails, you can check out last_operation[] and last_job[].
 last_operation = Ref{OperationRequest}()
 last_job = Ref{JobSchedulers.Job}()
 
-# TODO: add try-catch back in.  It's useful for debugging to leave it out.
+# TODO: add try-catch back in?  It's useful for debugging to leave it out.
 function operation(req::HTTP.Request, operation_name::String)
     # try
         o = OperationRequest(req, operation_name)
@@ -439,6 +449,7 @@ end
 Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.model), o.timespan)
 
 function solve(op::Simulate; kw...)
+    # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
     sol = solve(prob; progress = true, progress_steps = 1, kw...)
     DataFrame(sol)
