@@ -263,7 +263,7 @@ mutable struct OperationRequest{T <: Operation}
     obj::Config         # untouched JSON from request body
     required::Config    # required keys for endpoint
     optional::Config    # optional keys for endpoint
-    amr::Union{Config, Vector{Config}}  # ASKEM Model Representation(s)
+    model::Union{Config, Vector{Config}}  # ASKEM Model Representation(s)
     df::Union{Nothing, DataFrame}
     timespan::Union{Nothing, Tuple{Float64, Float64}}
     job_id::String
@@ -281,17 +281,17 @@ mutable struct OperationRequest{T <: Operation}
         schema = openapi_spec[].paths["/$route"].post.requestBody.content."application/json".schema
         required = Config(k => obj[k] for k in schema.required)
         optional = Config(k => obj[k] for k in setdiff(schema.properties, schema.required))
-        amr = Config()
+        model = Config()
         df = nothing
         timespan = nothing
         # EasyConfig.delete_empty!(obj)
         for (k,v) in obj
             if k == :model_config_id
-                amr = SIMSERVICE_ENABLE_TDS ?
+                model = SIMSERVICE_ENABLE_TDS ?
                     get_json("$SIMSERVICE_TDS_URL/model_configurations/$v", Config) :
                     Config()
             elseif k == :model_config_ids
-                amr = map(v) do id
+                model = map(v) do id
                     SIMSERVICE_ENABLE_TDS ?
                         get_json("$SIMSERVICE_TDS_URL/model_configurations/$id", Config) :
                         Config()
@@ -313,10 +313,10 @@ mutable struct OperationRequest{T <: Operation}
             elseif k == :local_csv  # local CSV file
                 df = CSV.read(v, DataFrame)
             elseif k == :model  # JSON
-                amr = v
+                model = v
             end
         end
-        new{operation_type}(obj, required, optional, amr, df, timespan, job_id, operation_type, nothing, nothing)
+        new{operation_type}(obj, required, optional, model, df, timespan, job_id, operation_type, nothing, nothing)
     end
 end
 
@@ -377,9 +377,16 @@ end
 
 function upload_results!(o::OperationRequest)
     isnothing(o.results) && error("No results.  Run `solve!(o)` first.")
-    isnothing(o.results_to_upload) && error("results_to_upload has not been set.")
 
-    (; filename, header, body) = o.results_to_upload
+    # DataFrame result saved as CSV.  Everything else saved as JSON.
+    o.results_to_upload = if o.results isa DataFrame
+        io = IOBuffer()
+        CSV.write(io, o.results)
+        (body = String(take!(io)), filename = "result.csv", header = ["Content-Type" => "text/csv"])
+    else
+        (body = JSON3.write(o.results), filename = "result.json", header = JSON_HEADER)
+    end
+
     SIMSERVICE_ENABLE_TDS || return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
 
     upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
@@ -393,15 +400,8 @@ function solve!(o::OperationRequest)
     operation = o.operation_type(o)
     callback = get_callback(o)
     o.results = solve(operation; callback)
-    update_job_status!(o; status="complete", complete_time=time())
-    o.results_to_upload = if o.results isa DataFrame
-        io = IOBuffer()
-        CSV.write(io, o.results)
-        (body = String(take!(io)), filename = "result.csv", header = ["Content-Type" => "text/csv"])
-    else
-        (body = JSON3.write(o.results), filename = "result.json", header = JSON_HEADER)
-    end
     upload_results!(o)
+    update_job_status!(o; status="complete", complete_time=time())
     return o.results_to_upload
 end
 
@@ -436,7 +436,7 @@ struct Simulate <: Operation
     timespan::Tuple{Float64, Float64}
 end
 
-Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.amr), o.timespan)
+Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.model), o.timespan)
 
 function solve(op::Simulate; kw...)
     prob = ODEProblem(op.sys, [], op.timespan, saveat=1)

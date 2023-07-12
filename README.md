@@ -69,12 +69,29 @@ Here's a summary of what the JSON should like in a request:
         - Required: `model_config_id`, `timespan`
         - Optional: `extra`
     - `/calibrate`
-        - Required: `model_config_id`: `dataset`
+        - Required: `model_config_id`, `dataset`
         - Optional: `extra`, `timespan`
     - `/ensemble`
         - Required: `model_config_ids`, `timespan`
         - Optional: `extra`
 3. Additional keys (for testing/when TDS is disabled).
     - `csv`: A String containing the contents of a CSV file.
-    - `local_csv`: The file path of a CSV file.
+    - `local_csv`: The file path of a CSV file, local to where the server is running.
     - `model`: JSON object in the The ASKEM Model Representation (AMR) format.
+
+### How Incoming Requests are Processed
+
+An incoming `HTTP.Request` gets turned into a `SimulationService.OperationRequest` object that holds
+all the necessary info for running/solving the model and returning results.
+
+
+1. Request arrives
+2. We process the keys into useful things for `OperationRequest`
+    - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::Config` in `OperationRequest`).
+    - `dataset` --> Retrieve dataset from TDS (`df::DataFrame` in `OperationRequest`).
+3. We start the job, which performs:
+    a. Update job status in TDS to "running".
+    b. Run/solve the model/simulation.
+    c. Upload results to TDS.
+    d. Update job status in TDS to "complete".
+4. Return a 201 response (above job runs async) with JSON that holds the `simulation_id` (client's term), which we call `job_id`.
