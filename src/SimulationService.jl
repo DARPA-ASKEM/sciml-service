@@ -7,7 +7,6 @@ import Dates
 import DifferentialEquations
 import Downloads: download
 import EasyConfig: EasyConfig, Config
-import EasyModelAnalysis
 import HTTP
 import InteractiveUtils: subtypes
 import JobSchedulers
