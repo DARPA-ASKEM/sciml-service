@@ -300,8 +300,9 @@ mutable struct OperationRequest{T <: Operation}
                 timespan = Tuple{Float64,Float64}(v)
             elseif k == :dataset  # calibrate only.  keys(v) = (:id, :filename, :mappings)
                 if SIMSERVICE_ENABLE_TDS
-                    data_url = "$SIMSERVICE_TDS_URL/datasets/$(v.id)/download-url?filename=$(v.filename)"
-                    df = CSV.read(download(get_json(data_url).url), DataFrame)
+                    tds_url = "$SIMSERVICE_TDS_URL/datasets/$(v.id)/download-url?filename=$(v.filename)"
+                    s3_url = get_json(tds_url).url
+                    df = CSV.read(download(s3_url), DataFrame)
                     rename!(df, v.mappings)
                 else
                     df = DataFrame()
@@ -395,9 +396,9 @@ function upload_results!(o::OperationRequest)
         return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
     end
 
-    upload_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
-    url = get_json(upload_url).url
-    HTTP.put(url, header; body=body)
+    tds_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
+    s3_url = get_json(tds_url).url
+    HTTP.put(s3_url, header; body=body)
 end
 
 #-----------------------------------------------------------------------------# solve!
