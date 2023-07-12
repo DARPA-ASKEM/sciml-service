@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     env:
-      JULIA_NUM_THREADS: 2
+      JULIA_NUM_THREADS: 4
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
