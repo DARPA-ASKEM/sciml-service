@@ -1,15 +1,14 @@
 using Test
 using DataFrames
+using EasyConfig
 using HTTP
 using JSON3
 using Oxygen
 using SciMLBase: solve
 
-# Required to run on machine without TDS/RabbitMQ
-ENV["SIMSERVICE_ENABLE_TDS"] = "false"
-ENV["SIMSERVICE_RABBITMQ_ENABLED"] = "false"
-
 using SimulationService
+
+SimulationService.SIMSERVICE_ENABLE_TDS = false
 
 #-----------------------------------------------------------------------------# Operations
 @testset "Operations" begin
@@ -33,23 +32,13 @@ using SimulationService
 end
 
 #-----------------------------------------------------------------------------# test routes
-# TODO: test that the openapi spec is valid
-@testset "Routes" begin
-    host = "127.0.0.1"
-    port = 8080
-    url = "http://$host:$port"
+@testset "Server Routes" begin
+    SimulationService.SIMSERVICE_ENABLE_TDS = false
+    start!()
 
-    server = start!(; host, port, async=true)
+    url = SimulationService.server_url[]
 
-    ready = false
-    while !ready
-        try
-            res = HTTP.get(url)
-            ready = true
-        catch
-            sleep(1)
-        end
-    end
+    sleep(1) # wait for server to start
 
     @testset "/" begin
         res = HTTP.get(url)
@@ -57,15 +46,34 @@ end
         @test JSON3.read(res.body).status == "ok"
     end
 
-    @testset "/operations/simulate" begin
+    @testset "/simulate" begin
+        file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
+        amr = JSON3.read(read(file), Config)
+        json = Config(test_amr = amr, timespan=(0, 90))
+        body = JSON3.write(json)
+        res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=body)
+        @test res.status == 201
+
+        done_or_failed = false
+        job_id = JSON3.read(res.body).simulation_id
+        while !done_or_failed
+            status = JSON3.read(HTTP.get("$url/status/$job_id").body)
+            if status.status == "complete"
+                @test true
+                done_or_failed = true
+            elseif status.status == "error"
+                @test false
+                done_or_failed = true
+            end
+            sleep(1)
+        end
+    end
+
+    @testset "/calibrate" begin
         @test true # TODO
     end
 
-    @testset "/operations/calibrate" begin
-        @test true # TODO
-    end
-
-    @testset "/operations/ensemble" begin
+    @testset "/ensemble" begin
         @test true # TODO
     end
 

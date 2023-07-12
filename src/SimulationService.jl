@@ -5,6 +5,7 @@ import CSV
 import DataFrames: DataFrame
 import Dates
 import DifferentialEquations
+import Downloads: download
 import EasyConfig: EasyConfig, Config
 import EasyModelAnalysis
 import HTTP
@@ -23,7 +24,7 @@ import YAML
 export start!, stop!
 
 #-----------------------------------------------------------------------------# notes
-# Example request to /operation/{operation}:
+# Example request to /{operation}:
 # {
 #   "model_config_id": "22739963-0f82-4d6f-aecc-1082712ed299",
 #   "timespan": {"start":0, "end":90},
@@ -76,14 +77,14 @@ function start!(; host=SIMSERVICE_HOST, port=SIMSERVICE_PORT, kw...)
     JobSchedulers.set_scheduler(max_cpu=0.5, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     # routes:
-    Oxygen.@get     "/"                         health
-    Oxygen.@post    "/{operation_name}"         operation
-    Oxygen.@get     "/jobs/status/{job_id}"     job_status
-    Oxygen.@post    "/jobs/kill/{job_id}"       job_kill
-    # docs:
-    api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))
+    Oxygen.@get     "/"                     health
+    Oxygen.@get     "/status/{job_id}"     job_status
+    Oxygen.@get     "/result/{job_id}"     job_result
+    Oxygen.@post    "/{operation_name}"     operation
+    Oxygen.@post    "/kill/{job_id}"       job_kill
 
-    # Below commented out because of: https://github.com/JuliaData/YAML.jl/issues/117
+    # Below commented out because of: https://github.com/JuliaData/YAML.jl/issues/117 ????
+    # api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))
     # swagger = SwaggerMarkdown.build(api)
     # Oxygen.mergeschema(swagger)
 
@@ -117,7 +118,7 @@ SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT"
 #-----------------------------------------------------------------------------# utils
 JSON_HEADER = ["Content-Type" => "application/json"]
 
-get_json(url::String, T::Type=JSON3.Object) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
+get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
 
 jobhash(x::String) = reinterpret(Int, hash(x))
 
@@ -171,23 +172,45 @@ function ode_system_from_amr(obj::Config)
     ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name))
 end
 
-#-----------------------------------------------------------------------------# health: "GET /"
+#-----------------------------------------------------------------------------# health: GET /
 health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE,
                             SIMSERVICE_ENABLE_TDS)
 
+#-----------------------------------------------------------------------------# job endpoints
+get_job(job_id::String) = JobSchedulers.job_query(jobhash(job_id))
+
+const NO_JOB =
+    HTTP.Response(404, ["Content-Type" => "text/plain; charset=utf-8"], body="Job does not exist")
+
+# /status/{job_id}
 function job_status(::HTTP.Request, job_id::String)
-    job = JobSchedulers.job_query(jobhash(job_id))
-    return job.state
+    job = get_job(job_id)
+    isnothing(job) && return NO_JOB
+    SCHEDULER_TO_API_STATUS_MAP = Dict(
+        JobSchedulers.QUEUING => :queued,
+        JobSchedulers.RUNNING => :running,
+        JobSchedulers.DONE => :complete,
+        JobSchedulers.FAILED => :error,
+        JobSchedulers.CANCELLED => :cancelled,
+    )
+    return (; status = SCHEDULER_TO_API_STATUS_MAP[job.state])
 end
 
+# /result/{job_id}
+function job_result(request::HTTP.Request, job_id::String)
+    job = get_job(job_id)
+    isnothing(job) && return NO_JOB
+    job.state == :done ?
+        JobSchedulers.result(job) :
+        Response(400, ["Content-Type" => "text/plain; charset=utf-8"], body="Job has not completed")
+end
+
+# /kill/{job_id}
 function job_kill(request::HTTP.Request, job_id::String)
-    try
-        job = JobSchedulers.job_query(jobhash(job_id))
-        JobSchedulers.cancel!(job)
-        return HTTP.Response(200; request)
-    catch
-        return HTTP.Response(500; request)
-    end
+    job = JobSchedulers.job_query(jobhash(job_id))
+    isnothing(job) && return NO_JOB
+    JobSchedulers.cancel!(job)
+    return HTTP.Response(200)
 end
 
 #-----------------------------------------------------------------------------# RabbitMQ
@@ -378,11 +401,12 @@ function solve!(o::OperationRequest)
     return o.results_to_upload
 end
 
-#-----------------------------------------------------------------------------# POST /operation/{operation}
+#-----------------------------------------------------------------------------# POST /{operation}
 # For debugging
 last_operation = Ref{OperationRequest}()
 last_job = Ref{JobSchedulers.Job}()
 
+# TODO: add try-catch back in.  It's useful for debugging to leave it out.
 function operation(req::HTTP.Request, operation_name::String)
     # try
         o = OperationRequest(req, operation_name)
