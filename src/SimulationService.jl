@@ -12,7 +12,7 @@ import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
 import MathML
-import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem
+import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, structural_simplify
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, DiscreteCallback, solve
@@ -147,6 +147,11 @@ function ode_system_from_amr(obj::Config)
     statenames = [Symbol(s.id) for s in model.states]
     statevars  = [only(@variables $s) for s in statenames]
     statefuncs = [only(@variables $s(t)) for s in statenames]
+    obsnames   = [Symbol(o.id) for o in ode.observables]
+    obsvars    = [only(@variables $o) for o in obsnames]
+    obsfuncs   = [only(@variables $o(t)) for o in obsnames]
+    allvars    = [statevars; obsvars]
+    allfuncs   = [statefuncs; obsfuncs]
 
     # get parameter values and state initial values
     paramnames = [Symbol(x.id) for x in ode.parameters]
@@ -171,10 +176,15 @@ function ode_system_from_amr(obj::Config)
         end
     end
 
-    subst = Dict(statevars .=> statefuncs)
+    subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
     eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
 
-    ODESystem(eqs, t, statefuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name))
+    for (o, ofunc) in zip(ode.observables, obsfuncs)
+        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
+        push!(eqs, ofunc ~ expr)
+    end
+
+    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
 end
 
 #-----------------------------------------------------------------------------# health: GET /
