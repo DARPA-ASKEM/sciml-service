@@ -7,15 +7,18 @@ import Dates
 import DifferentialEquations
 import Downloads: download
 import EasyConfig: EasyConfig, Config
+import EasyModelAnalysis
 import HTTP
 import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
+import JSONSchema
 import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, structural_simplify
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, DiscreteCallback, solve
+import StructTypes
 import SwaggerMarkdown
 import UUIDs
 import YAML
@@ -120,22 +123,26 @@ SIMSERVICE_RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "gues
 SIMSERVICE_RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
 SIMSERVICE_RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 
+#-----------------------------------------------------------------------------# MockTDS
+# If TDS disabled, then we'll log the data that would've been sent to TDS in mock_tds_cache
+struct MockTDS
+    what::Symbol
+    timestamp::Dates.DateTime
+    value::Any
+    MockTDS(what::Symbol, value) = new(what, Dates.now(), value)
+end
+const mock_tds_cache = MockTDS[]
+mock_tds!(what, value) = push!(mock_tds_cache, MockTDS(what, value))
+
 #-----------------------------------------------------------------------------# utils
 JSON_HEADER = ["Content-Type" => "application/json"]
 
+# Get Config object from JSON at `url`
 get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
 
-jobhash(x::String) = reinterpret(Int, hash(x))
 
-# Print message when TDS unavailable, e.g. SIMSERVICE_ENABLE_TDS || no_tds(:myfunc; id="id", filename="result.csv")
-function no_tds(f; kw...)
-    msg = "TDS unavailable in function: `$f`\n"
-    for (k, v) in kw
-        msg *= "\n$k = $v"
-    end
-    @info msg
-end
-
+#-----------------------------------------------------------------------------# ode_system_from_amr
+# Get `ModelingToolkit.ODESystem` from AMR
 # TODO: more tests.  This is an important function.
 function ode_system_from_amr(obj::Config)
     model = obj.model
@@ -187,59 +194,91 @@ function ode_system_from_amr(obj::Config)
     structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
 end
 
-#-----------------------------------------------------------------------------# health: GET /
-health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE,
-                            SIMSERVICE_ENABLE_TDS)
-
 #-----------------------------------------------------------------------------# job endpoints
 get_job(job_id::String) = JobSchedulers.job_query(jobhash(job_id))
+
+# Translate SimulationService's `job_id` to JobScheduler's `id`
+jobhash(job_id::String) = reinterpret(Int, hash(job_id))
+
+# translate JobScheduler's `state` to client's `status`
+get_job_status(job::JobSchedulers.Job) =
+    job.state == JobSchedulers.QUEUING      ? :queued :
+    job.state == JobSchedulers.RUNNING      ? :running :
+    job.state == JobSchedulers.DONE         ? :complete :
+    job.state == JobSchedulers.FAILED       ? :failed :
+    job.state == JobSchedulers.CANCELLED    ? :cancelled :
+    error("Should be unreachable.  Unknown job state: $(job.state)")
+
 
 const NO_JOB =
     HTTP.Response(404, ["Content-Type" => "text/plain; charset=utf-8"], body="Job does not exist")
 
+const INCOMPLETE_JOB =
+    HTTP.Response(400, ["Content-Type" => "text/plain; charset=utf-8"], body="Job has not completed")
+
 # /status/{job_id}
 function job_status(::HTTP.Request, job_id::String)
     job = get_job(job_id)
-    isnothing(job) && return NO_JOB
-    SCHEDULER_TO_API_STATUS_MAP = Dict(
-        JobSchedulers.QUEUING => :queued,
-        JobSchedulers.RUNNING => :running,
-        JobSchedulers.DONE => :complete,
-        JobSchedulers.FAILED => :error,
-        JobSchedulers.CANCELLED => :cancelled,
-    )
-    return (; status = SCHEDULER_TO_API_STATUS_MAP[job.state])
+    return isnothing(job) ? NO_JOB : (; status = get_job_status(job))
 end
 
 # /result/{job_id}
 function job_result(request::HTTP.Request, job_id::String)
     job = get_job(job_id)
     isnothing(job) && return NO_JOB
-    job.state == :done ?
-        JobSchedulers.result(job) :
-        Response(400, ["Content-Type" => "text/plain; charset=utf-8"], body="Job has not completed")
+    return job.state == :DONE ? JobSchedulers.result(job) : INCOMPLETE_JOB
 end
 
 # /kill/{job_id}
 function job_kill(request::HTTP.Request, job_id::String)
-    job = JobSchedulers.job_query(jobhash(job_id))
-    isnothing(job) && return NO_JOB
-    JobSchedulers.cancel!(job)
-    return HTTP.Response(200)
+    job = get_job(job_id)
+    if isnothing(job)
+        return NO_JOB
+    else
+        JobSchedulers.cancel!(job)
+        return HTTP.Response(200)  # joshday: need JSON response here?
+    end
 end
+
+
+#-----------------------------------------------------------------------------# health: GET /
+health(::HTTP.Request) = (; status="ok", SIMSERVICE_RABBITMQ_ENABLED, SIMSERVICE_RABBITMQ_ROUTE,
+                            SIMSERVICE_ENABLE_TDS)
 
 #-----------------------------------------------------------------------------# RabbitMQ
 # Content sent to client as JSON3.write(content)
 # If !SIMSERVICE_RABBITMQ_ENABLED, then just log the content
 function publish_to_rabbitmq(content)
-    SIMSERVICE_RABBITMQ_ENABLED || return no_tds(:publish_to_rabbitmq; content)
+    SIMSERVICE_RABBITMQ_ENABLED || return mock_tds!(:publish_to_rabbitmq, content)
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
     AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
 end
 publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
+#-----------------------------------------------------------------------------# SimulationRecord
+# This is the information that Terrarium knows about our jobs.
+Base.@kwdef mutable struct SimulationRecord
+    execution_payload::Config               = Config()  # joshday: Is this the POST-ed JSON?
+    type::Symbol                            = :unknown
+    status::Symbol                          = :unknown
+    engine::Symbol                          = :sciml
+    workflow_id::Union{Nothing, String}     = nothing
+    id::Union{Nothing, String}              = nothing
+    result_files::Vector{String}            = []
+    reason::Union{Nothing, String}          = nothing
+    start_time::Union{Nothing, String}      = nothing
+    completed_time::Union{Nothing, String}  = nothing
+    user_id::Union{Nothing, Int64}          = nothing
+    project_id::Union{Nothing, Int64}       = nothing
+end
 
+StructTypes.StructType(::Type{SimulationRecord}) = StructTypes.Mutable()
+
+function get_sim(job_id)
+    url = "$SIMSERVICE_TDS_URL/simulations/$job_id"
+    JSON3.read(HTTP.get(url, JSON_HEADER).body, SimulationRecord)
+end
 
 
 #-----------------------------------------------------------------------------# Operations
@@ -267,71 +306,85 @@ abstract type Operation end
 #-----------------------------------------------------------------------------# OperationRequest
 # An OperationRequest contains all the information required to run an Operation
 # It's created immediately from a client request and we pass it around to keep all info together
+Base.@kwdef mutable struct OperationRequest{T <: Operation}
+    obj::Config                                         = Config() # untouched JSON from request
+    required::Config                                    = Config() # required keys for endpoint
+    optional::Config                                    = Config() # optional keys for endpoint
+    model::Union{Config, Vector{Config}}                = Config() # ASKEM Model Representation(s)
+    df::Union{Nothing, DataFrame}                       = nothing
+    timespan::Union{Nothing, Tuple{Float64, Float64}}   = nothing
+    job_id::String                                      = "unknown_job"
+    operation_type::Type{T}                             = T
+    results::Any                                        = nothing
 
-# endpoint:       required_keys...                      | optional_keys...
-    # /simulate:  (engine, model_config_id, timespan)   | extra
-    # /calibrate: (engine, model_config_id, dataset_id) | extra, timespan
-    # /ensemble:  (engine, model_config_ids, timespan)  | extra
-mutable struct OperationRequest{T <: Operation}
-    obj::Config         # untouched JSON from request body
-    required::Config    # required keys for endpoint
-    optional::Config    # optional keys for endpoint
-    model::Union{Config, Vector{Config}}  # ASKEM Model Representation(s)
-    df::Union{Nothing, DataFrame}
-    timespan::Union{Nothing, Tuple{Float64, Float64}}
-    job_id::String
-    operation_type::Type{T}
-    results::Any # result of solving operaiont
-    results_to_upload::Any  # processed results to send back to client (body, header, filename)
+    # only update through update_record!(::OperaitonRequest; kw...)
+    record::SimulationRecord                            = SimulationRecord()
+end
 
-    function OperationRequest(req::HTTP.Request, route::String)
-        @info "Creating OperationRequest: POST $route"
-        job_id = "sciml-$(UUIDs.uuid4())"
-         # TODO: make operation_dict const
-        operation_dict = Dict(replace(lowercase(string(T)), "simulationservice." => "") => T for T in subtypes(Operation))
-        operation_type = operation_dict[route]
-        obj = JSON3.read(req.body, Config)
-        schema = openapi_spec[].paths["/$route"].post.requestBody.content."application/json".schema
-        required = Config(k => obj[k] for k in schema.required)
-        optional = Config(k => obj[k] for k in setdiff(schema.properties, schema.required))
-        model = Config()
-        df = nothing
-        timespan = nothing
-        # EasyConfig.delete_empty!(obj)
-        for (k,v) in obj
-            if k == :model_config_id
-                model = SIMSERVICE_ENABLE_TDS ?
-                    get_json("$SIMSERVICE_TDS_URL/model_configurations/$v") :
-                    Config()
-            elseif k == :model_config_ids
-                model = map(v) do id
-                    SIMSERVICE_ENABLE_TDS ?
-                        get_json("$SIMSERVICE_TDS_URL/model_configurations/$id") :
-                        Config()
-                end
-            elseif k == :timespan
-                timespan = (Float64(v["start"]), Float64(v["end"]))
-            elseif k == :dataset  # calibrate only.  keys(v) = (:id, :filename, :mappings)
-                if SIMSERVICE_ENABLE_TDS
-                    tds_url = "$SIMSERVICE_TDS_URL/datasets/$(v.id)/download-url?filename=$(v.filename)"
-                    s3_url = get_json(tds_url).url
-                    df = CSV.read(download(s3_url), DataFrame)
-                    rename!(df, v.mappings)
-                else
-                    df = DataFrame()
-                end
-
-            # Keys for testing only:
-            elseif k == :csv
-                df = CSV.read(codeunits(v), DataFrame)
-            elseif k == :local_csv  # local CSV file
-                df = CSV.read(v, DataFrame)
-            elseif k == :model  # JSON
-                model = v
-            end
+# When TDS disabled, assume `model_config_id` is just a filename in `examples/`
+function get_model(model_config_id::String)
+    if SIMSERVICE_ENABLE_TDS
+        return get_json("$SIMSERVICE_TDS_URL/model_configurations/$model_config_id")
+    else
+        mock_tds!(:get_model, model_config_id)
+        path = joinpath(@__DIR__, "..", "examples", model_config_id)
+        if isfile(path)
+            return JSON3.read(read(path), Config)
+        else
+            @warn "No local file found at $path"
+            Config()
         end
-        new{operation_type}(obj, required, optional, model, df, timespan, job_id, operation_type, nothing, nothing)
     end
+end
+
+function get_dataset(obj::Config)
+    if SIMSERVICE_ENABLE_TDS
+        tds_url = "$SIMSERVICE_TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
+        s3_url = get_json(tds_url).url
+        df = CSV.read(download(s3_url), DataFrame)
+        rename!(df, obj.mappings)
+        return df
+    else
+        MockTDS(:get_dataset, obj)
+        path = joinpath(@__DIR__, "..", "examples", obj.filename)
+        return isfile(path) ? CSV.read(path, DataFrame) : error("File not found: $path")
+    end
+end
+
+function OperationRequest(req::HTTP.Request, route::String)
+    # TODO: validate request with JSONSchema.jl
+    @info "Creating OperationRequest: POST $route"
+    T = Dict(lowercase(string(T.name.name)) => T for T in subtypes(Operation))[route]
+    o = OperationRequest{T}()
+    obj = JSON3.read(req.body, Config)
+    o.obj = obj
+    o.job_id = "sciml-$(UUIDs.uuid4())"
+    schema = openapi_spec[].paths["/$route"].post.requestBody.content."application/json".schema
+    o.required = Config(k => obj[k] for k in schema.required)
+    o.optional = Config(k => obj[k] for k in setdiff(schema.properties, schema.required))
+    for (k,v) in obj
+        if k == :model_config_id
+            o.model = get_model(v)
+        elseif k == :model_config_ids
+            o.model = get_model.(v)
+        elseif k == :timespan
+            o.timespan = (Float64(v.start), Float64(v.end))
+        elseif k == :dataset  # calibrate only
+            o.df = get_dataset(v)
+        elseif k == :model
+            o.model = v
+        else
+            @info "Unprocessed key: $k"
+        end
+    end
+
+    # SimulationRecord init
+    o.record.execution_payload = obj
+    o.record.type = Symbol(lowercase(string(o.operation_type.name.name)))
+    o.record.id = o.job_id
+    o.record.status = :queued
+
+    return o
 end
 
 #--------------------------------------------------------------------# IntermediateResults callback
@@ -354,11 +407,12 @@ function (o::IntermediateResults)(integrator)
 end
 get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.job_id))
 
+
 #--------------------------------------------------------------------------# Terrarium Data Service
 # Retry a function `n` times if error is HTTP 404
-default_retry_contion(ex) = ex isa HTTP.Exceptions.StatusError && ex.status == 404
+default_retry_condition(ex) = ex isa HTTP.Exceptions.StatusError && ex.status == 404
 
-function retry_n(f; n::Int=SIMSERVICE_TDS_RETRIES, sleep_between::Int=1, condition=default_retry_contion)
+function retry_n(f; n::Int=SIMSERVICE_TDS_RETRIES, sleep_between::Int=1, condition=default_retry_condition)
     res = nothing
     for _ in 1:n
         try
@@ -376,24 +430,30 @@ function retry_n(f; n::Int=SIMSERVICE_TDS_RETRIES, sleep_between::Int=1, conditi
     return res
 end
 
-function update_job_status!(o::OperationRequest; kw...)
-    SIMSERVICE_ENABLE_TDS || return no_tds(:update_job_status!; kw...)
-    job_id = o.job_id
-    url = "$SIMSERVICE_TDS_URL/simulations/$job_id"  # joshday: rename simulations => jobs?
-    obj = retry_n(() -> get_json(url))
-    # If JobID is not found in the TDS, we will create it
-    obj = isnothing(obj) ? Dict() : Dict(obj)
 
-    body = JSON3.write(merge(Dict(obj), Dict(kw)))
-    HTTP.put(url, JSON_HEADER; body=body)
+function update_record!(o::OperationRequest; kw...)
+    if SIMSERVICE_ENABLE_TDS
+        res = retry_n(() -> get_sim(o.job_id))
+        record = isnothing(res) ? o.record : res
+        for (k,v) in kw
+            setproperty!(record, k, v)
+        end
+        o.record = record
+        url = "$SIMSERVICE_TDS_URL/simulations/$job_id"
+        HTTP.put(url, JSON_HEADER; body=JSON3.write(o.record))
+    else
+        for (k,v) in kw
+            setproperty!(o.record, k, v)
+        end
+        mock_tds!(:update_record!, o.record)
+    end
 end
-
 
 function upload_results!(o::OperationRequest)
     isnothing(o.results) && error("No results.  Run `solve!(o)` first.")
 
     # DataFrame result saved as CSV.  Everything else saved as JSON.
-    o.results_to_upload = if o.results isa DataFrame
+    if o.results isa DataFrame
         io = IOBuffer()
         CSV.write(io, o.results)
         body = String(take!(io))
@@ -406,7 +466,7 @@ function upload_results!(o::OperationRequest)
     end
 
     if !SIMSERVICE_ENABLE_TDS
-        return no_tds(:upload_results!; filename, header, bodysummary=repr(summary(body)))
+        return push!(mock_tds_cache, MockTDS(:upload_results!, o.results))
     end
 
     tds_url = "$SIMSERVICE_TDS_URL/simulations/sciml-$(o.job_id)/upload-url?filename=$filename)"
@@ -417,15 +477,15 @@ end
 #-----------------------------------------------------------------------------# solve!
 function solve!(o::OperationRequest)
     try
-        update_job_status!(o; status="running", start_time=time())
+        update_record!(o; status = :running, start_time = time())
         operation = o.operation_type(o)
         callback = get_callback(o)
         o.results = solve(operation; callback)
         upload_results!(o)
-        update_job_status!(o; status="complete", complete_time=time())
+        update_record!(o; status = :complete, complete_time = time())
         return o.results_to_upload
     catch ex
-        update_job_status!(o; status="error", error=string(ex))
+        update_record!(o; status = :error, reason=string(ex))
     end
 end
 

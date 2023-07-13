@@ -75,10 +75,16 @@ Here's a summary of what the JSON should like in a request:
     - `/ensemble`
         - Required: `model_config_ids`, `timespan`
         - Optional: `extra`
-3. Additional keys (for testing/when TDS is disabled).
-    - `csv`: A String containing the contents of a CSV file.
-    - `local_csv`: The file path of a CSV file, local to where the server is running.
-    - `model`: JSON object in the The ASKEM Model Representation (AMR) format.
+
+Where (in Julia-speak):
+
+```julia
+model_config_id::String
+model_config_ids::Vector{String}
+timespan::JSON3.Object  # keys (start::Number, end::Number)
+extra::JSON3.Object # any keys possible
+dataset::JSON3.Object  # keys (id::String, filename::String, mappings::Object(col_name => new_col_name))
+```
 
 ### How Incoming Requests are Processed
 
