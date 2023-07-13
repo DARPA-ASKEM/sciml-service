@@ -49,7 +49,7 @@ end
     @testset "/simulate" begin
         file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
         amr = JSON3.read(read(file), Config)
-        json = Config(test_amr = amr, timespan=(0, 90))
+        json = Config(test_amr = amr, timespan=Dict("start" => 0, "end" => 90))
         body = JSON3.write(json)
         res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=body)
         @test res.status == 201
