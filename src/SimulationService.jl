@@ -16,6 +16,7 @@ import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, 
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, DiscreteCallback, solve
+import StructTypes
 import SwaggerMarkdown
 import UUIDs
 import YAML
@@ -324,6 +325,50 @@ mutable struct OperationRequest{T <: Operation}
     end
 end
 
+#-----------------------------------------------------------------------------# SimulationRecord
+# Simulation object published to the Terarium Data Service (TDS).
+@enum OperationType simulation calibration ensemble
+@enum Status queued running complete error cancelled failed
+@enum Engine ciemss julia
+
+mutable struct SimulationRecord
+  execution_payload::Dict() # five: should probably be an `OperationRequest`
+  type::OperationType
+  status::Status
+  engine::Engine
+  workflow_id::String
+  id::Union{String, Nothing}
+  result_files::AbstractArray{String}
+  reason::Union{String, Nothing}
+  start_time::Union{String, Nothing}
+  completed_time::Union{String, Nothing}
+  user_id::Union{Int64, Nothing}
+  project_id::Union{Int64, Nothing}
+
+  SimulationRecord(
+      execution_payload::OperationRequest,
+      type::OperationType,
+      status::Status,
+      engine::Engine,
+      workflow_id::String,
+      id::Union{String, Nothing} = nothing,
+      result_files::AbstractArray{String} = [],
+      reason::Union{String, Nothing} = nothing, 
+      start_time::Union{String, Nothing} = nothing,
+      completed_time::Union{String, Nothing} = nothing,
+      user_id::Union{Int64, Nothing} = nothing,
+      project_id::Union{Int64, Nothing} = nothing,
+  ) = new(execution_payload, type, status, engine, workflow_id, id, result_files, reason, start_time, completed_time, user_id, project_id)
+end
+
+StructTypes.StructType(::Type{SimulationRecord}) = StructTypes.Mutable()
+
+function get_sim(job_id) 
+    url = "$SIMSERVICE_TDS_URL/simulations/$job_id"
+    JSON3.read(HTTP.get(url, JSON_HEADER).body, SimulationRecord)
+end
+
+
 #--------------------------------------------------------------------# IntermediateResults callback
 # Publish intermediate results to RabbitMQ with at least `every` seconds inbetween callbacks
 mutable struct IntermediateResults
@@ -369,12 +414,16 @@ end
 function update_job_status!(o::OperationRequest; kw...)
     SIMSERVICE_ENABLE_TDS || return no_tds(:update_job_status!; kw...)
     job_id = o.job_id
-    url = "$SIMSERVICE_TDS_URL/simulations/$job_id"  # joshday: rename simulations => jobs?
-    obj = retry_n(() -> get_json(url))
-    # If JobID is not found in the TDS, we will create it
-    obj = isnothing(obj) ? Dict() : Dict(obj)
 
-    body = JSON3.write(merge(Dict(obj), Dict(kw)))
+    sim = retry_n(() -> get_sim(job_id))
+    # If JobID is not found in the TDS, we will create it
+    sim = isnothing(sim) ? SimulationRecord(o, simulation, queued, ciemss, "none") : sim
+
+    sim = nothing
+
+    for (k,v) in kw setproperty!(sim, k, v) end
+
+    body = JSON3.write(sim)
     HTTP.put(url, JSON_HEADER; body=body)
 end
 
