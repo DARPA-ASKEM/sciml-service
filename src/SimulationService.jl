@@ -12,7 +12,7 @@ import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
 import MathML
-import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, structural_simplify
+import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, DiscreteCallback, solve
@@ -462,11 +462,18 @@ end
 
 Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.model), o.timespan)
 
+function dataframe_with_observables(sol::ODESolution)
+    sys = sol.prob.f.sys
+    names = [states(sys); getproperty.(observed(sys), :lhs)]
+    cols = ["timestamp" => sol.t; [string(n) => sol[n] for n in names]]
+    DataFrame(cols)
+end
+
 function solve(op::Simulate; kw...)
     # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
     sol = solve(prob; progress = true, progress_steps = 1, kw...)
-    DataFrame(sol)
+    dataframe_with_observables(sol)
 end
 
 #-----------------------------------------------------------------------------# calibrate
