@@ -487,7 +487,8 @@ end
 Calibrate(o::OperationRequest) = Calibrate(o.sys, o.timespan, o.priors, o.data)
 
 function solve(o::Calibrate; callback)
-    prob = ODEProblem(o.sys, [], o.timespan, saveat=1)
+    prob = ODEProblem(o.sys, [], o.timespan)
+    names = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
 
     # what the data should be like
     # o.data
@@ -499,10 +500,16 @@ function solve(o::Calibrate; callback)
 
     p_posterior = bayesian_datafit(prob, o.priors, data_with_t)
 
+    probs = [remake(prob, p = Pair.(first.(p_posterior), getindex.(p_posterior.(fit), i))) for i in 1:length(p_posterior[1][2])]
+    enprob = EnsembleProblem(probs)
+    ensol = solve(enprob, saveat = 1)
+    soldata = DataFrame([sol.t;Matrix(sol[names])'])
+    rename!(soldata, names)
+
     df = DataFrame(last.(p_posterior), :auto)
     rename!(df, Symbol.(first.(p_posterior)))
 
-    df
+    df, soldata
 end
 
 #-----------------------------------------------------------------------------# ensemble
@@ -528,9 +535,12 @@ function solve(o::Ensemble; callback)
     fit_enprob = EnsembleProblem(forecast_probs)
     sol = solve(fit_enprob; saveat = o.t_forecast);
 
+    soldata = DataFrame([sol.t;Matrix(sol[names])'])
+
     # Requires https://github.com/SciML/SciMLBase.jl/pull/467
     # weighted_ensem = WeightedEnsembleSolution(sol, ensem_weights; quantiles = o.quantiles)
-    # DataFrame(weighted_ensem)
+    # df = DataFrame(weighted_ensem)
+    # df, soldata
 end 
 
 end # module
