@@ -3,7 +3,7 @@ module SimulationService
 import AMQPClient
 import CSV
 import DataFrames: DataFrame
-import Dates: Dates, DateTime, now, UTC
+import Dates: Dates, DateTime, now
 import DifferentialEquations
 import Downloads: download
 import Distributions: Uniform
@@ -108,7 +108,7 @@ RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 JSON_HEADER = ["Content-Type" => "application/json"]
 
 # Get Config object from JSON at `url`
-get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
+get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
 
 
 #-----------------------------------------------------------------------------# amr_get
@@ -180,6 +180,7 @@ end
 
 # data
 function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
+
     statelist = states(sys)
     statenames = string.(statelist)
     statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
@@ -268,17 +269,19 @@ end
 #-----------------------------------------------------------------------------# DataServiceModel
 # https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/schemas/simulation.json
 # How a model/simulation is represented in TDS
+# you can HTTP.get("$TDS_URL/simulation") and the JSON3.read(body, DataServiceModel)
 Base.@kwdef mutable struct DataServiceModel
     # Required
     id::String = "UNINITIALIZED_ID"         # matches with our `id`
-    engine::Symbol = :sciml                 # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
-    type::Symbol = :uninitialized           # :simulate, :calibrate, etc.
+    engine::String = "sciml"                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
+    type::String = "uninitialized"          # :calibration, :calibration_simulation, :ensemble, :simulation
     execution_payload::Config = Config()    # untouched JSON from request sent by HMI
     workflow_id::String = "IGNORED"         # (ignore)
     # Optional
-    timestamp::Union{Nothing, DateTime} = nothing           # (ignore?)
+    description::String = ""                                # (ignore)
+    timestamp::Union{Nothing, DateTime} = nothing             # (ignore?)
     result_files::Union{Nothing, Vector{String}} = nothing  # URLs of result files in S3
-    status::Union{Nothing, Symbol} = :queued                # queued|running|complete|error|cancelled|failed"
+    status::Union{Nothing, String} = "queued"                # queued|running|complete|error|cancelled|failed"
     reason::Union{Nothing, String} = nothing                # why simulation failed (returned junk results)
     start_time::Union{Nothing, DateTime} = nothing          # when job started
     completed_time::Union{Nothing, DateTime} = nothing      # when job completed
@@ -290,12 +293,17 @@ end
 StructTypes.StructType(::Type{DataServiceModel}) = StructTypes.Mutable()
 
 # Initialize a DataServiceModel
+operation_to_dsm_type = Dict(
+    :simulate => "simulation",
+    :calibrate => "calibration_simulation",
+    :ensemble => "ensemble"
+)
+
 function DataServiceModel(o::OperationRequest)
     m = DataServiceModel()
     m.id = o.id
-    m.type = o.operation
+    m.type = operation_to_dsm_type[o.operation]
     m.execution_payload = o.obj
-    m.timestamp = now(UTC)
     return m
 end
 
@@ -311,8 +319,8 @@ function DataServiceModel(id::String)
     delays = fill(1, TDS_RETRIES)
 
     try
-        m = retry(() -> JSON3.read(download("$TDS_URL/simulations/$id")); delays, check)()
-        return m
+        res = retry(() -> HTTP.get("$TDS_URL/simulations/$id"); delays, check)()
+        return JSON3.read(res.body, DataServiceModel)
     catch
         return error("No simulation found in TDS with id=$id.")
     end
@@ -358,10 +366,11 @@ function create(o::OperationRequest)
          @warn "TDS disabled - create with JSON $body"
          return body
     end
-    HTTP.post("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body)
+    HTTP.post("$TDS_URL/simulations/", JSON_HEADER; body)
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
+# kw args and their types much match field::fieldtype in DataServiceModel
 function update(o::OperationRequest; kw...)
     if !ENABLE_TDS
         @warn "TDS disabled - update OperationRequest with id=$(o.id), $kw"
@@ -369,9 +378,7 @@ function update(o::OperationRequest; kw...)
     end
     m = DataServiceModel(o.id)
     for (k,v) in kw
-        hasfield(m, k) ?
-            setproperty!(o, k, v) :
-            @warn "Skipping `update` of unrecognized field: $k = $v."
+        setproperty!(m, k, v)
     end
     HTTP.put("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body=JSON3.write(m))
 end
@@ -400,7 +407,7 @@ function complete(o::OperationRequest)
     tds_url = "$TDS_URL/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
-    update(o; status = :complete, completed_time = Dates.now(UTC), result_files = [s3_url])
+    update(o; status = "complete", completed_time = Dates.now(), result_files = [s3_url])
 end
 
 
@@ -428,7 +435,7 @@ function operation(request::HTTP.Request, operation_name::String)
         @task begin
             # try
                 @info "Updating job (id=$(o.id))...)"
-                update(o; status = :running, start_time = Dates.now(UTC)) # 4
+                update(o; status = :running, start_time = Dates.now()) # 4
                 @info "Solving job (id=$(o.id))..."
                 solve(o) # 5
                 @info "Completing job (id=$(o.id))...)"
