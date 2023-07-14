@@ -1,12 +1,11 @@
 ---
 # Julia Tests
 
-name: Correctness - Julia
+name: SimulationService.jl Tests
 on:
   push:
     branches: ['main']
   pull_request:
-    branches: ['main']
 
 jobs:
   test:
@@ -17,6 +16,8 @@ jobs:
         with:
           version: '1.9'
       - uses: julia-actions/cache@v1
+        with:
+          cache-compiled: "true"
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
