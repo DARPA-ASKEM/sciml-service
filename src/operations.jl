@@ -9,8 +9,8 @@ mutable struct IntermediateResults
     end
 end
 function (o::IntermediateResults)(integrator)
-    if o.last_callback + o.every ≤ Dates.now(UTC)
-        o.last_callback = Dates.now(UTC)
+    if o.last_callback + o.every ≤ Dates.now()
+        o.last_callback = Dates.now()
         (; iter, t, u, uprev) = integrator
         publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=norm(u - uprev), id=o.id,
             retcode=SciMLBase.check_error(integrator))
