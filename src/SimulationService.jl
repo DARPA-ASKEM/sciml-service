@@ -107,11 +107,24 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 # Get Config object from JSON at `url`
 get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
 
-#-----------------------------------------------------------------------------# ode_system_from_amr
+#-----------------------------------------------------------------------------# amr_get
+# Things that extract info from AMR JSON
+# joshday: should all of these be moved into OperationRequest?
+
+# priors
+function amr_get(model::Config, ::Val{:priors})
+    error("TODO: amr_get for :priors")
+end
+
+# data
+function amr_get(model::Config, ::Val{:data})
+    error("TODO: amr_get for :data")
+end
+
 # Get `ModelingToolkit.ODESystem` from AMR
-function ode_system_from_amr(obj::Config)
-    model = obj.model
-    ode = obj.semantics.ode
+function amr_get(model::Config, ::Type{ODESystem})
+    model = amr.model
+    ode = amr.semantics.ode
 
     t = only(@variables t)
     D = Differential(t)
@@ -410,5 +423,6 @@ end
 
 #-----------------------------------------------------------------------------# operations.jl
 include("operations.jl")
+
 
 end # module

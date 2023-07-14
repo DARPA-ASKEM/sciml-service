@@ -7,6 +7,7 @@ using Oxygen
 using SciMLBase: solve
 using ModelingToolkit
 
+
 using SimulationService
 using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble
 
@@ -16,7 +17,7 @@ SimulationService.ENABLE_TDS = false
 @testset "AMR parsing" begin
     file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
     amr = JSON3.read(read(file), Config)
-    sys = SimulationService.ode_system_from_amr(amr)
+    sys = SimulationService.amr_get(amr, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
