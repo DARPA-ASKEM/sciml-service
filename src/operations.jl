@@ -28,27 +28,36 @@ get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, Intermed
 # An Operation's fields should be separate from any request-specific things for ease of testing.
 abstract type Operation end
 
-#-----------------------------------------------------------------------------# Simulate
+#-----------------------------------------------------------------------------# simulate
 struct Simulate <: Operation
     sys::ODESystem
     timespan::Tuple{Float64, Float64}
 end
+
 Simulate(o::OperationRequest) = Simulate(ode_system_from_amr(o.model), o.timespan)
 
-function solve(op::Simulate; kw...)
-    prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
-    sol = solve(prob; progress = true, progress_steps = 1, kw...)
-    return DataFrame(sol)
+function dataframe_with_observables(sol::ODESolution)
+    sys = sol.prob.f.sys
+    names = [states(sys); getproperty.(observed(sys), :lhs)]
+    cols = ["timestamp" => sol.t; [string(n) => sol[n] for n in names]]
+    DataFrame(cols)
 end
 
-#-----------------------------------------------------------------------------# Calibrate
+function solve(op::Simulate; kw...)
+    # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
+    prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
+    sol = solve(prob; progress = true, progress_steps = 1, kw...)
+    dataframe_with_observables(sol)
+end
+
+#-----------------------------------------------------------------------------# calibrate
 struct Calibrate <: Operation
     # TODO
 end
 Calibrate(o::OperationRequest) = error("TODO")
 solve(o::Calibrate; callback) = error("TODO")
 
-#-----------------------------------------------------------------------------# Ensemble
+#-----------------------------------------------------------------------------# ensemble
 struct Ensemble <: Operation
     # TODO
 end

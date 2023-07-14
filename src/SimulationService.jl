@@ -15,7 +15,7 @@ import JSON3
 import JSONSchema
 import LinearAlgebra: norm
 import MathML
-import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, structural_simplify
+import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
 import OpenAPI
 import Oxygen
 import SciMLBase: SciMLBase, DiscreteCallback, solve
