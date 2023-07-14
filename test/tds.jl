@@ -26,7 +26,7 @@ model_config_id = "2b08c681-ee0e-4ad1-81d5-e0e3e203ffbe"
 obj = get_model(model_config_id)
 @test !isempty(obj)
 
-#-----------------------------------------------------------------------------# get_dataset maybe ✓
+#-----------------------------------------------------------------------------# get_dataset ✓
 datasets = get_json("$TDS_URL/datasets", Vector{Config})
 
 data_obj = Config(
@@ -60,6 +60,8 @@ m = DataServiceModel(id)
 res = update(o; status = "running")
 @test res.status == 200
 @test JSON3.read(res.body).id == id
+sleep(1)
+@test get_json("$TDS_URL/simulations/$id").status == "running"
 
 #-----------------------------------------------------------------------------# complete ✓
 @test_throws "solve(" complete(o)
@@ -69,6 +71,7 @@ solve(o)
 res = complete(o)
 @test res.status == 200
 @test JSON3.read(res.body).id == id
+@test get_json("$TDS_URL/simulations/$id").status == "complete"
 
 
 #-----------------------------------------------------------------------------# ALL TOGETHER NOW ✓
