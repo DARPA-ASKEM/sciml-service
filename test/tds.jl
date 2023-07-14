@@ -24,7 +24,7 @@ simulations = get_simulations()
 #-----------------------------------------------------------------------------# get_model ✓
 model_config_id = "2b08c681-ee0e-4ad1-81d5-e0e3e203ffbe"
 obj = get_model(model_config_id)
-@test obj.id == model_config_id
+@test !isempty(obj)
 
 #-----------------------------------------------------------------------------# get_dataset ???
 # TODO
@@ -32,7 +32,8 @@ obj = get_model(model_config_id)
 #-----------------------------------------------------------------------------# create ✓
 # mock request to SimulationService
 payload = @config(model_config_id=model_config_id, timespan.start=1, timespan.end=100, engine="sciml")
-req = HTTP.Request("POST", "", ["Content-Type" => "application/json"], JSON3.write(payload))
+body = JSON3.write(payload)
+req = HTTP.Request("POST", "", ["Content-Type" => "application/json"], body)
 o = OperationRequest(req, "simulate")
 id = o.id
 
@@ -55,7 +56,7 @@ res = update(o; status = "running")
 #-----------------------------------------------------------------------------# complete ✓
 @test_throws "solve(" complete(o)
 
-o.result = DataFrame(fake=1:10, results=randn(10))
+solve(o)
 
 res = complete(o)
 @test res.status == 200
@@ -83,8 +84,10 @@ res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
 @test res.status == 201
 id = JSON3.read(res.body).simulation_id
 done_or_failed = false
-while !done_or_failed
+
+for i in 1:20
     st = JSON3.read(HTTP.get("$url/status/$id").body).status
+    @info "Status: $st"
     st in ["queued", "complete", "running"] ? @test(true) : @test(false)
     done_or_failed = st in ["complete", "error"]
     sleep(1)

@@ -110,6 +110,7 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 # Get Config object from JSON at `url`
 get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
 
+timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
 #-----------------------------------------------------------------------------# amr_get
 # Things that extract info from AMR JSON
@@ -200,12 +201,12 @@ jobhash(id::String) = reinterpret(Int, hash(id))
 # translate JobScheduler's `state` to client's `status`
 # NOTE: client also has a `:failed` status that indicates the job completed, but with junk results
 get_job_status(job::JobSchedulers.Job) =
-    job.state == JobSchedulers.QUEUING      ? :queued :
-    job.state == JobSchedulers.RUNNING      ? :running :
-    job.state == JobSchedulers.DONE         ? :complete :
-    job.state == JobSchedulers.FAILED       ? :error :
-    job.state == JobSchedulers.CANCELLED    ? :cancelled :
-    error("Should be unreachable.  Unknown job state: $(job.state)")
+    job.state == JobSchedulers.QUEUING      ? "queued" :
+    job.state == JobSchedulers.RUNNING      ? "running" :
+    job.state == JobSchedulers.DONE         ? "complete" :
+    job.state == JobSchedulers.FAILED       ? "error" :
+    job.state == JobSchedulers.CANCELLED    ? "cancelled" :
+    error("Should be unreachable.  Unknown jobstate: $(job.state)")
 
 
 const NO_JOB =
@@ -259,6 +260,8 @@ function OperationRequest(req::HTTP.Request, operation_name::String)
     end
     return o
 end
+
+Config(o::OperationRequest) = Config(k => getfield(o,k) for k in fieldnames(OperationRequest))
 
 function solve(o::OperationRequest)
     callback = get_callback(o)
@@ -331,7 +334,7 @@ function get_model(id::String)
         @warn "TDS disabled - get_model with argument $id"
         return Config()  # TODO: mock TDS
     end
-    get_json("$TDS_URL/model_configurations/$id")
+    get_json("$TDS_URL/model_configurations/$id").configuration
 end
 
 function get_dataset(obj::Config)
@@ -348,7 +351,7 @@ end
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
     if !RABBITMQ_ENABLED
-        @warn "TDS disabled - publish_to_rabbitmq with argument $content"
+        @warn "RabbitMQ disabled - publish_to_rabbitmq with argument $content"
         return content
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
@@ -378,7 +381,9 @@ function update(o::OperationRequest; kw...)
     end
     m = DataServiceModel(o.id)
     for (k,v) in kw
-        setproperty!(m, k, v)
+        isnothing(v) ?
+            setproperty!(m, k, v) :
+            setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
     HTTP.put("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body=JSON3.write(m))
 end
@@ -407,7 +412,7 @@ function complete(o::OperationRequest)
     tds_url = "$TDS_URL/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
-    update(o; status = "complete", completed_time = Dates.now(), result_files = [s3_url])
+    update(o; status = "complete", completed_time = timestamp(), result_files = [s3_url])
 end
 
 
@@ -433,16 +438,16 @@ function operation(request::HTTP.Request, operation_name::String)
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin
-            # try
+            try
                 @info "Updating job (id=$(o.id))...)"
-                update(o; status = "running", start_time = Dates.now()) # 4
+                update(o; status = "running", start_time = timestamp()) # 4
                 @info "Solving job (id=$(o.id))..."
                 solve(o) # 5
                 @info "Completing job (id=$(o.id))...)"
                 complete(o)  # 6, 7
-            # catch
-            #     update(o; status = :error)
-            # end
+            catch
+                update(o; status = "error")
+            end
         end
     )
     job.id = jobhash(o.id)
