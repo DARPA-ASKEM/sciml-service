@@ -3,7 +3,7 @@ module SimulationService
 import AMQPClient
 import CSV
 import DataFrames: DataFrame, rename!
-import Dates: Dates, DateTime, now
+import Dates: Dates, DateTime, now, UTC
 import DifferentialEquations
 import Downloads: download
 import Distributions: Uniform
@@ -25,6 +25,7 @@ import SwaggerMarkdown
 import SymbolicUtils
 import UUIDs
 import YAML
+import Statistics
 
 export start!, stop!
 

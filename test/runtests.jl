@@ -75,6 +75,30 @@ end
 
 
 #-----------------------------------------------------------------------------# Operations
+
+@testset "Operations Direct" begin
+    @testset "calibrate" begin
+        file = here("examples", "BIOMD0000000955_askenet.json")
+        amr = JSON3.read(read(file), Config)
+        sys = SimulationService.amr_get(amr, ODESystem)
+        priors = SimulationService.amr_get(amr, sys, Val(:priors))
+        df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+        data = SimulationService.amr_get(df, sys, Val(:data))
+        num_chains = 4
+        num_iterations = 100
+        calibrate_method = "bayesian"
+        ode_method = nothing
+        o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
+
+        
+        dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+
+        statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+        @test names(dfsim) == vcat("timestamp",reduce(vcat,[string.("ensemble",i,"_", statenames) for i in 1:size(dfsim,2)÷length(statenames)]))
+        @test names(dfparam) == string.(parameters(sys))
+    end
+end
+
 @testset "Operations" begin
     @testset "simulate" begin
         json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
@@ -87,7 +111,15 @@ end
     end
 
     @testset "calibrate" begin
-        # TODO
+        json_url = here("examples", "request-calibrate-no-integration.json")
+        obj = JSON3.read(read(json_url), Config)
+        
+        amr_url = here("examples", "BIOMD0000000955_askenet.json")
+        amr = JSON3.read(read(amr_url), Config)
+        sys = SimulationService.amr_get(amr, ODESystem)
+        
+        priors = SimulationService.amr_get(amr, sys, Val(:priors))
+        df = CSV.read(here("examples", "dataset.csv"), DataFrame)
     end
 
     @testset "ensemble" begin
