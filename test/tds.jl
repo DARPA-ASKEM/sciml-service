@@ -105,3 +105,5 @@ end
 @test SimulationService.last_operation[].result isa DataFrame
 
 stop!()
+
+@info "Done!"
