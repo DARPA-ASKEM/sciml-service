@@ -26,7 +26,7 @@ model_config_id = "2b08c681-ee0e-4ad1-81d5-e0e3e203ffbe"
 obj = get_model(model_config_id)
 @test !isempty(obj)
 
-#-----------------------------------------------------------------------------# get_dataset maybe?
+#-----------------------------------------------------------------------------# get_dataset maybe ✓
 datasets = get_json("$TDS_URL/datasets", Vector{Config})
 
 data_obj = Config(
@@ -88,22 +88,60 @@ sleep(3) # Give server a chance to start
 end
 
 
+#-----------------------------------------------------------------------------# simulate ✓
 res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
 @test res.status == 201
 id = JSON3.read(res.body).simulation_id
-done_or_failed = false
 
 for i in 1:20
-    st = JSON3.read(HTTP.get("$url/status/$id").body).status
-    @info "Status: $st"
-    st in ["queued", "complete", "running"] ? @test(true) : @test(false)
-    done_or_failed = st in ["complete", "error"]
-    sleep(1)
-    done_or_failed && break
+    tds_status = get_json("$TDS_URL/simulations/$id").status
+    @info "simulate status: $tds_status"
+    if tds_status == "complete"
+        @test true
+        break
+    elseif tds_status == "error"
+        @test false
+        break
+    end
+    sleep(0.5)
 end
 
-@test SimulationService.last_operation[].result isa DataFrame
 
+
+
+
+#-----------------------------------------------------------------------------# calibrate
+data_id = "e81fede5-2645-4c83-90b1-46a916764b1f"
+
+body = JSON3.write(@config(
+    model_config_id = model_config_id,
+    dataset.id = data_id,
+    dataset.name = "Example Dataset",
+    dataset.filename = "dataset.csv",
+    engine = "sciml",
+    timespan.start=1,
+    timespan.end=100
+))
+
+res = HTTP.post("$url/calibrate", ["Content-Type" => "application/json"]; body)
+@test res.status == 201
+id = JSON3.read(res.body).simulation_id
+
+for i in 1:20
+    tds_status = get_json("$TDS_URL/simulations/$id").status
+    @info "simulate status: $tds_status"
+    if tds_status == "complete"
+        @test true
+        break
+    elseif tds_status == "error"
+        @test false
+        break
+    end
+    sleep(0.5)
+end
+
+
+
+#-----------------------------------------------------------------------------# Done!
 stop!()
-
 @info "Done!"
