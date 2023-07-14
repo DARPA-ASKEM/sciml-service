@@ -121,11 +121,6 @@ end
 # Things that extract info from AMR JSON
 # joshday: should all of these be moved into OperationRequest?
 
-# priors
-function amr_get(obj::Config, ::Val{:priors})
-    error("TODO: amr_get for :priors")
-end
-
 # Get `ModelingToolkit.ODESystem` from AMR
 function amr_get(obj::Config, ::Type{ODESystem})
     model = obj.model
@@ -175,6 +170,23 @@ function amr_get(obj::Config, ::Type{ODESystem})
     end
 
     structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
+end
+
+# priors
+function amr_get(obj::Config, sys::ODESystem, ::Val{:priors})
+    paramlist = parameters(sys)
+    namelist = nameof.(paramlist)
+
+    map(amr.semantics.ode.parameters) do p
+        @assert p.distribution.type === "StandardUniform1"
+        dist = Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+        paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+    end
+end
+
+# data
+function amr_get(obj::Config, ::Val{:data})
+    error("TODO: amr_get for :data")
 end
 
 #-----------------------------------------------------------------------------# job endpoints

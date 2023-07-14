@@ -63,7 +63,7 @@ end
 
 function Calibrate(o::OperationRequest)
     sys = amr_get(o.model, ODESystem)
-    priors = amr_get(o.model, Val(:priors))
+    priors = amr_get(o.model, sys, Val(:priors))
     data = o.df
     Calibrate(sys, o.timespan, priors, data)
 end
