@@ -112,19 +112,19 @@ get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Conf
 # joshday: should all of these be moved into OperationRequest?
 
 # priors
-function amr_get(amr::Config, ::Val{:priors})
+function amr_get(obj::Config, ::Val{:priors})
     error("TODO: amr_get for :priors")
 end
 
 # data
-function amr_get(amr::Config, ::Val{:data})
+function amr_get(obj::Config, ::Val{:data})
     error("TODO: amr_get for :data")
 end
 
 # Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(amr::Config, ::Type{ODESystem})
-    model = amr.model
-    ode = amr.semantics.ode
+function amr_get(obj::Config, ::Type{ODESystem})
+    model = obj.model
+    ode = obj.semantics.ode
 
     t = only(@variables t)
     D = Differential(t)
