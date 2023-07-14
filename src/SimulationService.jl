@@ -25,6 +25,7 @@ import SwaggerMarkdown
 import SymbolicUtils
 import UUIDs
 import YAML
+import Statistics
 
 export start!, stop!
 

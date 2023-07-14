@@ -84,7 +84,13 @@ end
         priors = SimulationService.amr_get(amr, sys, Val(:priors))
         df = CSV.read(here("examples", "dataset.csv"), DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
-        o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data)
+        num_chains = 4
+        num_iterations = 100
+        calibrate_method = "bayesian"
+        ode_method = nothing
+        o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
+
+        
         dfsim, dfparam = SimulationService.solve(o; callback = nothing)
 
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
@@ -105,7 +111,19 @@ end
     end
 
     @testset "calibrate" begin
-        # TODO
+        json_url = here("examples", "request-calibrate-no-integration.json")
+        obj = JSON3.read(read(json_url), Config)
+        
+        amr_url = here("examples", "BIOMD0000000955_askenet.json")
+        amr = JSON3.read(read(amr_url), Config)
+        priors = SimulationService.amr_get(amr, sys, Val(:priors))
+        df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+
+        sys = SimulationService.amr_get(obj, ODESystem)
+        op = Simulate(sys, (0.0, 99.0))
+        df = solve(op)
+        @test df isa DataFrame
+        @test extrema(df.timestamp) == (0.0, 99.0)
     end
 
     @testset "ensemble" begin

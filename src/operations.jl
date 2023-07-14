@@ -58,41 +58,80 @@ struct Calibrate <: Operation
     sys::ODESystem
     timespan::Tuple{Float64, Float64}
     priors::Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
-    data::Any # ???
+    data::Any
+    num_chains::Int
+    num_iterations::Int
+    calibrate_method::String
+    ode_method::Any
 end
 
 function Calibrate(o::OperationRequest)
     sys = amr_get(o.model, ODESystem)
     priors = amr_get(o.model, sys, Val(:priors))
     data = amr_get(o.df, sys, Val(:data))
-    Calibrate(sys, o.timespan, priors, data)
+
+    num_chains = 4
+    num_iterations = 100
+    calibrate_method = "bayesian"
+    ode_method = nothing
+
+    if :extra in keys(o)
+        extrakeys = keys(o.extra)
+        :num_chains in extrakeys && (num_chains = o.extra.num_chains)
+        :num_iterations in extrakeys && (num_iterations = o.extra.num_iterations)
+        :calibrate_method in extrakeys && (calibrate_method = o.extra.calibrate_method)
+    end
+    Calibrate(sys, o.timespan, priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 end
 
 function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
-    p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
-                                                     nchains = 2,
-                                                     niter = 100,
-                                                     mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
 
-    pvalues = last.(p_posterior)
+    if o.calibrate_method == "bayesian"
+        p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
+                                                        nchains = 2,
+                                                        niter = 100,
+                                                        mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
 
-    probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
-    enprob = EasyModelAnalysis.EnsembleProblem(probs)
-    ensol = solve(enprob, saveat = 1)
-    outs = map(1:length(probs)) do i
-        mats = stack(ensol[i][statenames])'
-        headers = string.("ensemble",i,"_", statenames)
-        mats, headers
+        pvalues = last.(p_posterior)
+
+        probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
+        enprob = EasyModelAnalysis.EnsembleProblem(probs)
+        ensol = solve(enprob, saveat = 1)
+        outs = map(1:length(probs)) do i
+            mats = stack(ensol[i][statenames])'
+            headers = string.("ensemble",i,"_", statenames)
+            mats, headers
+        end
+        dfsim = DataFrame(hcat(ensol[1].t, reduce(hcat, first.(outs))), :auto)
+        rename!(dfsim, ["timestamp";reduce(vcat, last.(outs))])
+
+        dfparam = DataFrame(last.(p_posterior), :auto)
+        rename!(dfparam, Symbol.(first.(p_posterior)))
+
+        dfsim, dfparam
+    elseif o.calibrate_method == "local" || o.calibrate_method == "global"
+        if o.calibrate_method == "local"
+            init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
+            fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
+        else
+            init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
+            fit = global_datafit(prob, init_params, o.data)
+        end
+
+        newprob = remake(prob, p=fit)
+        sol = solve(newprob)
+        dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
+        rename!(dfsim, ["timestamp";string.(statenames)])
+
+        dfparam = DataFrame(Matrix(last.(fit)'), :auto)
+        rename!(dfparam, Symbol.(first.(fit)))
+
+        dfsim, dfparam
+    else
+        error("$(o.calibrate_method) is not a valid choice of calibration method")
     end
-    dfsim = DataFrame(hcat(ensol[1].t, reduce(hcat, first.(outs))), :auto)
-    rename!(dfsim, ["timestamp";reduce(vcat, last.(outs))])
-
-    dfparam = DataFrame(last.(p_posterior), :auto)
-    rename!(dfparam, Symbol.(first.(p_posterior)))
-
-    dfsim, dfparam
 end
 
 #-----------------------------------------------------------------------------# Ensemble
