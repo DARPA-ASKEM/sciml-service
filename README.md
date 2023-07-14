@@ -1,15 +1,17 @@
 # SimulationService.jl
 
-Simulation Service runs a REST API for running jobs in the [ASKEM Model Representation](https://github.com/DARPA-ASKEM/Model-Representations).
+SimulationService runs a REST API for running jobs in the [ASKEM Model Representation](https://github.com/DARPA-ASKEM/Model-Representations).
 
-See example payloads in the `./examples` directory.
+The SimulationService follows the OpenAPI spec [here](https://github.com/DARPA-ASKEM/simulation-api-spec/blob/main/openapi.yaml)
+
+See example payloads in the `./examples` directory or at [https://github.com/DARPA-ASKEM/simulation-api-spec](https://github.com/DARPA-ASKEM/simulation-api-spec).
 
 ## Development Environment
 
 ```julia
 using Revise  # auto-update the server with your changes
 using SimulationService
-SimulationService.SIMSERVICE_ENABLE_TDS = false  # opt out of Terrarium Data Service
+SimulationService.ENABLE_TDS = false  # opt out of Terrarium Data Service
 
 start!()  # run server
 
@@ -30,7 +32,7 @@ docker compose --file docker/docker-compose.yml up --build
 using SimulationService, HTTP, JSON3, EasyConfig
 
 # Start the server/job scheduler without Terrarium Data Service
-SimulationService.SIMSERVICE_ENABLE_TDS = false
+SimulationService.ENABLE_TDS = false
 start!()
 
 url = SimulationService.server_url[]  # server url
