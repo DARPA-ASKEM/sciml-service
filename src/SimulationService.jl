@@ -266,7 +266,8 @@ Config(o::OperationRequest) = Config(k => getfield(o,k) for k in fieldnames(Oper
 
 function solve(o::OperationRequest)
     callback = get_callback(o)
-    op = OPERATIONS_LIST[o.operation](o)
+    T = OPERATIONS_LIST[o.operation]
+    op = T(o)
     o.result = solve(op; callback)
 end
 
@@ -440,11 +441,11 @@ function operation(request::HTTP.Request, operation_name::String)
     job = JobSchedulers.Job(
         @task begin
             try
-                @info "Updating job (id=$(o.id))...)"
+                @info "Updating job $(o.id)"
                 update(o; status = "running", start_time = timestamp()) # 4
-                @info "Solving job (id=$(o.id))..."
+                @info "Solving job $(o.id)"
                 solve(o) # 5
-                @info "Completing job (id=$(o.id))...)"
+                @info "Completing job $(o.id)"
                 complete(o)  # 6, 7
             catch
                 update(o; status = "error")
@@ -452,11 +453,10 @@ function operation(request::HTTP.Request, operation_name::String)
         end
     )
     job.id = jobhash(o.id)
-    @info "Submitting job..."
-    JobSchedulers.submit!(job)
-
     last_operation[] = o
     last_job[] = job
+    @info "Submitting job..."
+    JobSchedulers.submit!(job)
 
     body = JSON3.write((; simulation_id = o.id))
     return HTTP.Response(201, ["Content-Type" => "application/json; charset=utf-8"], body; request)

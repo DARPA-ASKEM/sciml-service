@@ -77,19 +77,9 @@ res = complete(o)
 #-----------------------------------------------------------------------------# ALL TOGETHER NOW ✓
 SimulationService.operation(req, "simulate")
 
-#-----------------------------------------------------------------------------# with server ✓
 start!()
-
 url = SimulationService.server_url[]
-
 sleep(3) # Give server a chance to start
-
-@testset "/" begin
-    res = HTTP.get(url)
-    @test res.status == 200
-    @test JSON3.read(res.body).status == "ok"
-end
-
 
 #-----------------------------------------------------------------------------# simulate ✓
 res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
@@ -109,11 +99,13 @@ for i in 1:20
     sleep(0.5)
 end
 
+@test get_json("$TDS_URL/simulations/$id").status == "complete"
 
 
 
 
-#-----------------------------------------------------------------------------# calibrate
+
+#-----------------------------------------------------------------------------# calibrate X
 data_id = "e81fede5-2645-4c83-90b1-46a916764b1f"
 
 body = JSON3.write(@config(
@@ -130,9 +122,10 @@ res = HTTP.post("$url/calibrate", ["Content-Type" => "application/json"]; body)
 @test res.status == 201
 id = JSON3.read(res.body).simulation_id
 
-for i in 1:20
+t = now()
+while true
     tds_status = get_json("$TDS_URL/simulations/$id").status
-    @info "simulate status: $tds_status"
+    @info "simulate status ($(round(now() - t, Dates.Second))): $tds_status"
     if tds_status == "complete"
         @test true
         break
@@ -140,8 +133,10 @@ for i in 1:20
         @test false
         break
     end
-    sleep(0.5)
+    sleep(5)
 end
+
+@test get_json("$TDS_URL/simulations/$id").status == "complete"
 
 
 

@@ -75,8 +75,8 @@ function Calibrate(o::OperationRequest)
     calibrate_method = "bayesian"
     ode_method = nothing
 
-    if :extra in keys(o)
-        extrakeys = keys(o.extra)
+    if :extra in keys(o.obj)
+        extrakeys = keys(o.obj.extra)
         :num_chains in extrakeys && (num_chains = o.extra.num_chains)
         :num_iterations in extrakeys && (num_iterations = o.extra.num_iterations)
         :calibrate_method in extrakeys && (calibrate_method = o.extra.calibrate_method)
