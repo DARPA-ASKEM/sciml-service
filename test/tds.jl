@@ -6,7 +6,7 @@
 using SimulationService: get_model, get_dataset, create, update, complete, get_json, solve,
     DataServiceModel, OperationRequest, TDS_URL, TDS_RETRIES, ENABLE_TDS
 
-using HTTP, JSON3, DataFrames, EasyConfig, Test
+using HTTP, JSON3, DataFrames, EasyConfig, Dates, Test
 
 SimulationService.ENABLE_TDS = true
 
@@ -85,10 +85,12 @@ sleep(3) # Give server a chance to start
 res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
 @test res.status == 201
 id = JSON3.read(res.body).simulation_id
+sleep(2)
 
-for i in 1:20
+t = now()
+while true
     tds_status = get_json("$TDS_URL/simulations/$id").status
-    @info "simulate status: $tds_status"
+    @info "simulate status ($(round(now() - t, Dates.Second))): $tds_status"
     if tds_status == "complete"
         @test true
         break
@@ -96,7 +98,7 @@ for i in 1:20
         @test false
         break
     end
-    sleep(0.5)
+    sleep(5)
 end
 
 @test get_json("$TDS_URL/simulations/$id").status == "complete"
@@ -121,11 +123,12 @@ body = JSON3.write(@config(
 res = HTTP.post("$url/calibrate", ["Content-Type" => "application/json"]; body)
 @test res.status == 201
 id = JSON3.read(res.body).simulation_id
+sleep(2)
 
 t = now()
 while true
     tds_status = get_json("$TDS_URL/simulations/$id").status
-    @info "simulate status ($(round(now() - t, Dates.Second))): $tds_status"
+    @info "calibrate status ($(round(now() - t, Dates.Second))): $tds_status"
     if tds_status == "complete"
         @test true
         break

@@ -91,7 +91,7 @@ end
 #-----------------------------------------------------------------------------# settings
 # Server
 HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
-PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8000"))
+PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
 
 # Terrarium Data Service (TDS)
 ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
