@@ -53,11 +53,12 @@ end
 
 #-----------------------------------------------------------------------------# start!
 function start!(; host=HOST, port=PORT, kw...)
+    @info "starting server on $host:$port.  nthreads=$(Threads.nthreads())"
     ENABLE_TDS || @warn "TDS is disabled.  Some features will not work."
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
     JobSchedulers.scheduler_start()
-    JobSchedulers.set_scheduler(max_cpu=0.5, max_mem=0.5, update_second=0.05, max_job=5000)
+    JobSchedulers.set_scheduler(max_cpu=0.6, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     Oxygen.@get     "/"                 health
     Oxygen.@get     "/status/{id}"      job_status
