@@ -180,6 +180,7 @@ end
 
 # data
 function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
+    df = CSV.read(here("examples", "dataset.csv"), DataFrame)
     statelist = states(sys)
     statenames = string.(statelist)
     statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
