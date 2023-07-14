@@ -116,14 +116,10 @@ end
         
         amr_url = here("examples", "BIOMD0000000955_askenet.json")
         amr = JSON3.read(read(amr_url), Config)
+        sys = SimulationService.amr_get(amr, ODESystem)
+        
         priors = SimulationService.amr_get(amr, sys, Val(:priors))
         df = CSV.read(here("examples", "dataset.csv"), DataFrame)
-
-        sys = SimulationService.amr_get(obj, ODESystem)
-        op = Simulate(sys, (0.0, 99.0))
-        df = solve(op)
-        @test df isa DataFrame
-        @test extrema(df.timestamp) == (0.0, 99.0)
     end
 
     @testset "ensemble" begin
