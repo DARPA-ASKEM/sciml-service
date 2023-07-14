@@ -309,14 +309,13 @@ function DataServiceModel(id::String)
     end
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES)
-    obj = try
-        retry(() -> get_json("$TDS_URL/simulations/$id"); delays, check)()
+
+    try
+        m = retry(() -> JSON3.read(download("$TDS_URL/simulations/$id")); delays, check)()
+        return m
     catch
-        nothing
+        return error("No simulation found in TDS with id=$id.")
     end
-    isnothing(obj) ?
-        error("No simulation found in TDS with id=$id.") :
-        JSON3.read(obj, DataServiceModel)
 end
 
 function get_model(id::String)
