@@ -2,7 +2,7 @@ module SimulationService
 
 import AMQPClient
 import CSV
-import DataFrames: DataFrame
+import DataFrames: DataFrame, rename!
 import Dates: Dates, DateTime, now, UTC
 import DifferentialEquations
 import Downloads: download
