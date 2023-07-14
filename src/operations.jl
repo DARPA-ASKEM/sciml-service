@@ -73,7 +73,7 @@ function solve(o::Calibrate; callback)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
     p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
                                                      nchains = 2,
-                                                     niter = 10,
+                                                     niter = 100,
                                                      mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
 
     pvalues = last.(p_posterior)
