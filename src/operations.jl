@@ -70,28 +70,29 @@ end
 
 function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
-    names = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+    statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+    p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
+                                                     nchains = 2,
+                                                     niter = 10,
+                                                     mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
 
-    # what the data should be like
-    # o.data
-    tsave1 = collect(10.0:10.0:100.0)
-    sol_data1 = solve(prob, saveat = tsave1)
-    tsave2 = collect(10.0:13.5:100.0)
-    sol_data2 = solve(prob, saveat = tsave2)
-    data_with_t = [x => (tsave1, sol_data1[x]), z => (tsave2, sol_data2[z])]
+    pvalues = last.(p_posterior)
 
-    p_posterior = bayesian_datafit(prob, o.priors, data_with_t)
-
-    probs = [remake(prob, p = Pair.(first.(p_posterior), getindex.(p_posterior.(fit), i))) for i in 1:length(p_posterior[1][2])]
-    enprob = EnsembleProblem(probs)
+    probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
+    enprob = EasyModelAnalysis.EnsembleProblem(probs)
     ensol = solve(enprob, saveat = 1)
-    soldata = DataFrame([sol.t;Matrix(sol[names])'])
-    rename!(soldata, names)
+    outs = map(1:length(probs)) do i
+        mats = stack(ensol[i][statenames])'
+        headers = string.("ensemble",i,"_", statenames)
+        mats, headers
+    end
+    dfsim = DataFrame(hcat(ensol[1].t, reduce(hcat, first.(outs))), :auto)
+    rename!(dfsim, ["timestamp";reduce(vcat, last.(outs))])
 
-    df = DataFrame(last.(p_posterior), :auto)
-    rename!(df, Symbol.(first.(p_posterior)))
+    dfparam = DataFrame(last.(p_posterior), :auto)
+    rename!(dfparam, Symbol.(first.(p_posterior)))
 
-    df, soldata
+    dfsim, dfparam
 end
 
 #-----------------------------------------------------------------------------# Ensemble
