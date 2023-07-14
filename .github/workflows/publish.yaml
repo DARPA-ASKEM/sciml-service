@@ -9,6 +9,7 @@ on:
   push:
     branches: ['main']
     tags: ['*']
+  pull_request:
 
 jobs:
   # Generate a more robust tag for the image
