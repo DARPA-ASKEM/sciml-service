@@ -56,7 +56,7 @@ end
     @testset "simulate" begin
         json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
         obj = SimulationService.get_json(json_url)
-        sys = SimulationService.ode_system_from_amr(obj)
+        sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
         df = solve(op)
         @test df isa DataFrame
