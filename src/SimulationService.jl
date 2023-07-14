@@ -435,7 +435,7 @@ function operation(request::HTTP.Request, operation_name::String)
         @task begin
             # try
                 @info "Updating job (id=$(o.id))...)"
-                update(o; status = :running, start_time = Dates.now()) # 4
+                update(o; status = "running", start_time = Dates.now()) # 4
                 @info "Solving job (id=$(o.id))..."
                 solve(o) # 5
                 @info "Completing job (id=$(o.id))...)"

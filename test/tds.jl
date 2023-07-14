@@ -12,18 +12,14 @@ SimulationService.ENABLE_TDS = true
 
 #-----------------------------------------------------------------------------# Check that TDS is running
 get_simulations() = get_json("$TDS_URL/simulations", Vector{Config})
-
 simulations = get_simulations()
-
 for sim in simulations
     res = HTTP.delete("$TDS_URL/simulations/$(sim.id)")
     @test res.status == 200
 end
-
 sleep(2)
 simulations = get_simulations()
 @test isempty(simulations)
-
 
 #-----------------------------------------------------------------------------# get_model ✓
 model_config_id = "2b08c681-ee0e-4ad1-81d5-e0e3e203ffbe"
@@ -49,6 +45,7 @@ sleep(2)
 
 #-----------------------------------------------------------------------------# DataServiceModel ✓
 m = DataServiceModel(id)
+@test m.id == id
 
 #-----------------------------------------------------------------------------# update ✓
 res = update(o; status = "running")
@@ -61,6 +58,9 @@ res = update(o; status = "running")
 o.result = DataFrame(fake=1:10, results=randn(10))
 
 res = complete(o)
+@test res.status == 200
+@test JSON3.read(res.body).id == id
+
 
 #-----------------------------------------------------------------------------# ALL TOGETHER NOW ???
 SimulationService.operation(req, "simulate")

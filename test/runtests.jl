@@ -57,10 +57,10 @@ end
 #-----------------------------------------------------------# DataServiceModel and OperationRequest
 @testset "DataServiceModel and OperationRequest" begin
     m = DataServiceModel()
-    @test m.engine == :sciml
+    @test m.engine == "sciml"
     @test m.id == "UNINITIALIZED_ID"
 
-    o = OperationRequest()
+    o = OperationRequest(operation = :simulate)
     m2 = DataServiceModel(o)
 
     # OperationRequest constructor with dummy HTTP.Request
@@ -134,12 +134,4 @@ end
     end
 
     stop!()
-end
-
-#-----------------------------------------------------------------------------# TDS Enable
-@testset "TDS Enabled" begin
-
-    if SimulationService.ENABLE_TDS
-
-    end
 end
