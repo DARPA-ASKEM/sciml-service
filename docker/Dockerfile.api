@@ -11,7 +11,6 @@ RUN julia -e 'using Pkg; Pkg.instantiate();'
 COPY src/ /simulation-service/src/
 RUN julia -e 'using Pkg; Pkg.resolve();'
 
-COPY paths.yaml /simulation-service/
 # Launch simulation-service
 EXPOSE 8080
 CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.start!(); while true sleep(10000) end" ]

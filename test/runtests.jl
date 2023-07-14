@@ -13,16 +13,6 @@ using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate
 
 SimulationService.ENABLE_TDS = false
 
-#-----------------------------------------------------------------------------# AMR parsing
-@testset "AMR parsing" begin
-    file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
-    amr = JSON3.read(read(file), Config)
-    sys = SimulationService.amr_get(amr, ODESystem)
-    @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
-    @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
-    @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
-end
-
 #-----------------------------------------------------------------------# JSON payloads for testing
 examples = joinpath(@__DIR__, "..", "examples")
 
@@ -34,6 +24,16 @@ simulate_payloads = JSON3.write.([
 calibrate_payloads = JSON3.write.([])
 
 ensemble_payloads = JSON3.write.([])
+
+#-----------------------------------------------------------------------------# AMR parsing
+@testset "AMR parsing" begin
+    file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
+    amr = JSON3.read(read(file), Config)
+    sys = SimulationService.amr_get(amr, ODESystem)
+    @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
+    @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
+    @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
+end
 
 #-----------------------------------------------------------# DataServiceModel and OperationRequest
 @testset "DataServiceModel and OperationRequest" begin
@@ -48,6 +48,10 @@ ensemble_payloads = JSON3.write.([])
     req = HTTP.Request("POST", "", [], simulate_payloads[1])
     o = OperationRequest(req, "simulate")
     @test DataServiceModel(o).id == o.id
+
+    # Test that `create` returns JSON with the required keys
+    create_obj = JSON3.read(SimulationService.create(o), Config)
+    @test all(haskey(create_obj, k) for k in [:id, :engine, :type, :execution_payload, :workflow_id])
 end
 
 

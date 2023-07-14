@@ -285,7 +285,10 @@ end
 # Each function in this section needs to handle both cases: ENABLE_TDS=true and ENABLE_TDS=false
 
 function DataServiceModel(id::String)
-    ENABLE_TDS || return @warn "TDS disabled - DataServiceModel($(repr(id)))"
+    if !ENABLE_TDS
+        @warn "TDS disabled - DataServiceModel with argument $id"
+        return DataServiceModel()  # TODO: mock TDS
+    end
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES)
     obj = try
@@ -299,30 +302,30 @@ function DataServiceModel(id::String)
 end
 
 function get_model(id::String)
-    if ENABLE_TDS
-        get_json("$TDS_URL/model_configurations/$id")
-    else
-        @warn "TDS disabled - get_model: $id"
-        Config()
+    if !ENABLE_TDS
+        @warn "TDS disabled - get_model with argument $id"
+        return Config()  # TODO: mock TDS
     end
+    get_json("$TDS_URL/model_configurations/$id")
 end
 
 function get_dataset(obj::Config)
-    if ENABLE_TDS
-        tds_url = "$TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
-        s3_url = get_json(tds_url).url
-        df = CSV.read(download(s3_url), DataFrame)
-        rename!(df, obj.mappings)
-        return df
-    else
-        @warn "TDS disabled - get_dataset: $obj"
-        DataFrame()
+    if !ENABLE_TDS
+        @warn "TDS disabled - get_dataset with argument $obj"
+        return DataFrame()  # TODO: mock tds
     end
+    tds_url = "$TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
+    s3_url = get_json(tds_url).url
+    df = CSV.read(download(s3_url), DataFrame)
+    return rename!(df, obj.mappings)
 end
 
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
-    RABBITMQ_ENABLED || return @warn "TDS disabled - publish_to_rabbitmq: $content"
+    if !RABBITMQ_ENABLED
+        @warn "TDS disabled - publish_to_rabbitmq with argument $content"
+        return content
+    end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
     AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
@@ -332,14 +335,21 @@ publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
 # initialize the DataServiceModel in TDS: POST /simulations/{id}
 function create(o::OperationRequest)
-    ENABLE_TDS || return @warn "TDS disabled - create OperationRequest with id=$(o.id)."
     m = DataServiceModel(o)
-    HTTP.post("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body=JSON3.write(m))
+    body = JSON3.write(m)
+    if !ENABLE_TDS
+         @warn "TDS disabled - create with JSON $body"
+         return body
+    end
+    HTTP.post("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body)
 end
 
-# update the DataServiceModel in TDS: PUT /simulations/{id]}
+# update the DataServiceModel in TDS: PUT /simulations/{id}
 function update(o::OperationRequest; kw...)
-    ENABLE_TDS || return @warn "TDS disabled - update OperationRequest with id=$(o.id), $kw"
+    if !ENABLE_TDS
+        @warn "TDS disabled - update OperationRequest with id=$(o.id), $kw"
+        return kw
+    end
     m = DataServiceModel(o.id)
     for (k,v) in kw
         hasfield(m, k) ?
@@ -366,7 +376,8 @@ function complete(o::OperationRequest)
         header = JSON_HEADER
     end
     if !ENABLE_TDS
-        return @warn "TDS disabled - complete(id=$(o.id)): summary(body) = $(summary(body))"
+        @warn "TDS disabled - complete(id=$(o.id)): summary(body) = $(summary(body))"
+        return body
     end
 
     tds_url = "$TDS_URL/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
