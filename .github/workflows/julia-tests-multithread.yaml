@@ -1,7 +1,7 @@
 ---
 # Julia Tests (Same as julia-tests but with JULIA_NUM_THREADS set)
 
-name: Correctness - Julia
+name: SimulationService.jl Tests (Multi-threaded)
 on:
   push:
     branches: ['main']

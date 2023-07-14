@@ -1,7 +1,7 @@
 ---
 # Julia Tests
 
-name: Correctness - Julia
+name: SimulationService.jl Tests
 on:
   push:
     branches: ['main']

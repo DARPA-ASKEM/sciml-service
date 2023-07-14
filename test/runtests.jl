@@ -9,25 +9,35 @@ using ModelingToolkit
 
 
 using SimulationService
-using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble
+using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble,
+    @trycatch
 
 SimulationService.ENABLE_TDS = false
 
-#-----------------------------------------------------------------------# JSON payloads for testing
-examples = joinpath(@__DIR__, "..", "examples")
+here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
+#-----------------------------------------------------------------------# JSON payloads for testing
 # route => payload
 simulate_payloads = JSON3.write.([
-    @config(local_model_file=joinpath(examples, "BIOMD0000000955_askenet.json"), timespan.start=0, timespan.end=100),
+    @config(local_model_file=here("examples", "BIOMD0000000955_askenet.json"), timespan.start=0, timespan.end=100),
 ])
 
 calibrate_payloads = JSON3.write.([])
 
 ensemble_payloads = JSON3.write.([])
 
+#-----------------------------------------------------------------------------# utils
+@testset "utils" begin
+    obj = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
+    @test obj isa Config
+
+    @test @trycatch(error()) == nothing
+    @test @trycatch(true)
+end
+
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
-    file = joinpath(@__DIR__, "..", "examples", "BIOMD0000000955_askenet.json")
+    file = here("examples", "BIOMD0000000955_askenet.json")
     amr = JSON3.read(read(file), Config)
     sys = SimulationService.amr_get(amr, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]

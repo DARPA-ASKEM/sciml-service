@@ -107,6 +107,16 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 # Get Config object from JSON at `url`
 get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
 
+macro trycatch(expr, msg="")
+    esc(quote
+        try
+            $expr
+        catch ex
+            @error "Evaluating expression `" * $(string(expr)) * "` produced error: $ex. " * $(string(msg))
+        end
+    end)
+end
+
 #-----------------------------------------------------------------------------# amr_get
 # Things that extract info from AMR JSON
 # joshday: should all of these be moved into OperationRequest?
@@ -114,11 +124,6 @@ get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Conf
 # priors
 function amr_get(obj::Config, ::Val{:priors})
     error("TODO: amr_get for :priors")
-end
-
-# data
-function amr_get(obj::Config, ::Val{:data})
-    error("TODO: amr_get for :data")
 end
 
 # Get `ModelingToolkit.ODESystem` from AMR
