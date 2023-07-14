@@ -26,8 +26,16 @@ model_config_id = "2b08c681-ee0e-4ad1-81d5-e0e3e203ffbe"
 obj = get_model(model_config_id)
 @test !isempty(obj)
 
-#-----------------------------------------------------------------------------# get_dataset ???
-# TODO
+#-----------------------------------------------------------------------------# get_dataset maybe?
+datasets = get_json("$TDS_URL/datasets", Vector{Config})
+
+data_obj = Config(
+    id = datasets[1].id,
+    name = datasets[1].name,
+    filename = datasets[1].file_names[1]
+)
+
+get_dataset(data_obj)
 
 #-----------------------------------------------------------------------------# create ✓
 # mock request to SimulationService
@@ -63,10 +71,10 @@ res = complete(o)
 @test JSON3.read(res.body).id == id
 
 
-#-----------------------------------------------------------------------------# ALL TOGETHER NOW ???
+#-----------------------------------------------------------------------------# ALL TOGETHER NOW ✓
 SimulationService.operation(req, "simulate")
 
-#-----------------------------------------------------------------------------# with server ???
+#-----------------------------------------------------------------------------# with server ✓
 start!()
 
 url = SimulationService.server_url[]
@@ -91,5 +99,9 @@ for i in 1:20
     st in ["queued", "complete", "running"] ? @test(true) : @test(false)
     done_or_failed = st in ["complete", "error"]
     sleep(1)
+    done_or_failed && break
 end
+
 @test SimulationService.last_operation[].result isa DataFrame
+
+stop!()

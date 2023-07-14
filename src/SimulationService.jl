@@ -2,7 +2,7 @@ module SimulationService
 
 import AMQPClient
 import CSV
-import DataFrames: DataFrame
+import DataFrames: DataFrame, rename!
 import Dates: Dates, DateTime, now
 import DifferentialEquations
 import Downloads: download
@@ -344,8 +344,8 @@ function get_dataset(obj::Config)
     end
     tds_url = "$TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
-    df = CSV.read(download(s3_url), DataFrame)
-    return rename!(df, obj.mappings)
+    df = CSV.read(download(s3_url), DataFrame)  # !!! <-- ONLY FAILURE ON OUR TEST INSTANCE OF TDS !!!
+    return rename!(df, Dict{String,String}(string(k) => string(v) for (k,v) in obj.mappings))
 end
 
 # published as JSON3.write(content)
