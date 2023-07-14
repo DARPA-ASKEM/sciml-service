@@ -110,15 +110,6 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 # Get Config object from JSON at `url`
 get_json(url::String)::Config = JSON3.read(HTTP.get(url, JSON_HEADER).body, Config)
 
-macro trycatch(expr, msg="")
-    esc(quote
-        try
-            $expr
-        catch ex
-            @error "Evaluating expression `" * $(string(expr)) * "` produced error: $ex. " * $(string(msg))
-        end
-    end)
-end
 
 #-----------------------------------------------------------------------------# amr_get
 # Things that extract info from AMR JSON
@@ -189,7 +180,6 @@ end
 
 # data
 function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
-    df = CSV.read(here("examples", "dataset.csv"), DataFrame)
     statelist = states(sys)
     statenames = string.(statelist)
     statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this

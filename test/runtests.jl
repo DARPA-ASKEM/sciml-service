@@ -1,16 +1,17 @@
 using Test
 using DataFrames
+using Distributions
 using EasyConfig
 using HTTP
 using JSON3
 using Oxygen
 using SciMLBase: solve
 using ModelingToolkit
+using CSV
 
 
 using SimulationService
-using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble,
-    @trycatch
+using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble
 
 SimulationService.ENABLE_TDS = false
 
@@ -30,9 +31,6 @@ ensemble_payloads = JSON3.write.([])
 @testset "utils" begin
     obj = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
     @test obj isa Config
-
-    @test @trycatch(error()) == nothing
-    @test @trycatch(true)
 end
 
 #-----------------------------------------------------------------------------# AMR parsing
@@ -136,4 +134,12 @@ end
     end
 
     stop!()
+end
+
+#-----------------------------------------------------------------------------# TDS Enable
+@testset "TDS Enabled" begin
+
+    if SimulationService.ENABLE_TDS
+
+    end
 end
