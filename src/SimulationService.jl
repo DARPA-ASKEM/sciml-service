@@ -174,20 +174,28 @@ function amr_get(obj::Config, ::Type{ODESystem})
 end
 
 # priors
-function amr_get(obj::Config, sys::ODESystem, ::Val{:priors})
-    paramlist = parameters(sys)
+function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
+    paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
     namelist = nameof.(paramlist)
 
     map(amr.semantics.ode.parameters) do p
         @assert p.distribution.type === "StandardUniform1"
-        dist = Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+        dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
         paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
     end
 end
 
 # data
-function amr_get(obj::Config, ::Val{:data})
-    error("TODO: amr_get for :data")
+function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
+    df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+    statelist = states(sys)
+    statenames = string.(statelist)
+    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
+    tvals = df[:,"timestamp"]
+
+    map(statelist, statenames) do s,n
+        s => (tvals,df[:,n])
+    end
 end
 
 #-----------------------------------------------------------------------------# job endpoints

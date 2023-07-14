@@ -57,14 +57,14 @@ end
 struct Calibrate <: Operation
     sys::ODESystem
     timespan::Tuple{Float64, Float64}
-    priors::Any # ???
+    priors::Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
     data::Any # ???
 end
 
 function Calibrate(o::OperationRequest)
     sys = amr_get(o.model, ODESystem)
     priors = amr_get(o.model, sys, Val(:priors))
-    data = o.df
+    data = amr_get(o.df, sys, Val(:data))
     Calibrate(sys, o.timespan, priors, data)
 end
 

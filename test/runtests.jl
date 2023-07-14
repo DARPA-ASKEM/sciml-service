@@ -43,6 +43,17 @@ end
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
+
+    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+    @test priors isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
+    @test string.(first.(priors)) == string.(parameters(sys))
+    @test last.(priors) isa Vector{Uniform{Float64}}
+
+    df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+    data = SimulationService.amr_get(df, sys, Val(:data))
+    @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
+    @test string.(first.(data)) == string.(states(sys))
+    @test all(all.(map(first.(last.(data))) do x; x .== 0:89; end))
 end
 
 #-----------------------------------------------------------# DataServiceModel and OperationRequest
