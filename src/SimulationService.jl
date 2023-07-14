@@ -68,11 +68,9 @@ function start!(; host=HOST, port=PORT, kw...)
     Oxygen.@post    "/{operation_name}" operation
     Oxygen.@post    "/kill/{id}"        job_kill
 
-    # TODO: bring docs/ back
-    # Issue? https://github.com/JuliaData/YAML.jl/issues/117
-    # api = SwaggerMarkdown.OpenAPI("3.0", Dict(string(k) => v for (k,v) in openapi_spec[]))
-    # swagger = SwaggerMarkdown.build(api)
-    # Oxygen.mergeschema(swagger)
+    _dict(x) = string(x)
+    _dict(x::Config) = Dict{String,Any}(string(k) => _dict(v) for (k,v) in x)
+    Oxygen.mergeschema(_dict(openapi_spec[]))
 
     if Threads.nthreads() > 1  # true in production
         Oxygen.serveparallel(; host, port, async=true, kw...)
