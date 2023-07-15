@@ -2,7 +2,7 @@ FROM julia:1.9
 WORKDIR /simulation-service
 
 # Install dependencies
-COPY Manifest.toml  /simulation-service/
+# COPY Manifest.toml  /simulation-service/
 COPY Project.toml /simulation-service/
 ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'

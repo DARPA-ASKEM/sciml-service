@@ -42,19 +42,19 @@ url = SimulationService.server_url[]  # server url
 model = JSON3.read(read("./examples/BIOMD0000000955_askenet.json"), Config)
 
 # You can directly provide AMR JSON with the `test_amr` key
-# (Note: this does not look like a request that would be seen in production)
-json = Config(model = model, timespan=(0, 90))
+# (Note: this does not entirely look like a request that would be seen in production)
+json = @config(model = model, timespan.start=0, timespan.end=90, engine="sciml")
 
 body = JSON3.write(json)
 
 # Kick off the simulation job
 res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body=body)
 
-# Get the `job_id` so we can query the job status and get results
-job_id = JSON3.read(res.body).simulation_id
+# Get the `id` so we can query the job status and get results
+id = JSON3.read(res.body).simulation_id
 
 # Re-run this until `status_obj.status == "done"`
-status = JSON3.read(HTTP.get("$url/jobs/status/$job_id").body)
+status = JSON3.read(HTTP.get("$url/status/$id").body)
 
 # close down server and scheduler
 stop!()
@@ -103,7 +103,7 @@ all the necessary info for running/solving the model and returning results.
     - Run/solve the model/simulation.
     - Upload results to S3.
     - Update job status in TDS to "complete".
-4. Return a 201 response (above job runs async) with JSON that holds the `simulation_id` (client's term), which we call `job_id`.
+4. Return a 201 response (above job runs async) with JSON that holds the `simulation_id` (client's term), which we call `id`.
 
 
 ## Architecture
