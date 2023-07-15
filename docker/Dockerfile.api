@@ -1,12 +1,15 @@
 FROM julia:1.9
 WORKDIR /simulation-service
 
-# Install SimulationService.jl
+# Install dependencies
+# COPY Manifest.toml  /simulation-service/
 COPY Project.toml /simulation-service/
-COPY src/ /simulation-service/src/
 ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 
+# Install simulation-service source
+COPY src/ /simulation-service/src/
+RUN julia -e 'using Pkg; Pkg.resolve();'
 
 # Launch simulation-service
 EXPOSE 8080
