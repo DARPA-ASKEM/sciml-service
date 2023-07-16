@@ -374,16 +374,16 @@ function operation(request::HTTP.Request, operation_name::String)
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin
-            try
+            # try
                 @info "Updating job $(o.id)"
                 update(o; status = "running", start_time = timestamp()) # 4
                 @info "Solving job $(o.id)"
                 solve(o) # 5
                 @info "Completing job $(o.id)"
                 complete(o)  # 6, 7
-            catch
-                update(o; status = "error")
-            end
+            # catch ex
+            #     update(o; status = "error", reason = string(ex))
+            # end
         end
     )
     job.id = jobhash(o.id)

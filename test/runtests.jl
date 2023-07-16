@@ -135,6 +135,7 @@ end
         @test res.status == 200
     end
 
+    # Check the status of a job until it finishes
     function test_until_done(id::String, every=2)
         t = now()
         while true

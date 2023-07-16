@@ -155,9 +155,9 @@ function Calibrate(o::OperationRequest)
 
     if :extra in keys(o.obj)
         extrakeys = keys(o.obj.extra)
-        :num_chains in extrakeys && (num_chains = o.extra.num_chains)
-        :num_iterations in extrakeys && (num_iterations = o.extra.num_iterations)
-        :calibrate_method in extrakeys && (calibrate_method = o.extra.calibrate_method)
+        :num_chains in extrakeys && (num_chains = o.obj.extra.num_chains)
+        :num_iterations in extrakeys && (num_iterations = o.obj.extra.num_iterations)
+        :calibrate_method in extrakeys && (calibrate_method = o.obj.extra.calibrate_method)
     end
     Calibrate(sys, o.timespan, priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 end
