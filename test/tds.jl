@@ -3,12 +3,16 @@
 
 # Docs: $TDS_URL/#/Simulation/simulation_delete_simulations__simulation_id__delete
 
+using SimulationService
 using SimulationService: get_model, get_dataset, create, update, complete, get_json, solve,
-    DataServiceModel, OperationRequest, TDS_URL, TDS_RETRIES, ENABLE_TDS
+    DataServiceModel, OperationRequest
 
 using HTTP, JSON3, DataFrames, EasyConfig, Dates, Test
 
-SimulationService.ENABLE_TDS = true
+SimulationService.ENABLE_TDS[] = true
+SimulationService.PORT[] = 8081
+
+TDS_URL = SimulationService.TDS_URL[]
 
 #-----------------------------------------------------------------------------# Check that TDS is running
 get_simulations() = get_json("$TDS_URL/simulations", Vector{Config})
