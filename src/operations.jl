@@ -101,20 +101,17 @@ end
 get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id))
 
 
-#-----------------------------------------------------------------------------# Operations
-# An Operation requires:
-#  1) an Operation(::OperationRequest) constructor
-#  2) a solve(::Operation; callback) method
-#
-# An Operation's fields should be separate from any request-specific things for ease of testing.
-abstract type Operation end
-
+#----------------------------------------------------------------------# dataframe_with_observables
 function dataframe_with_observables(sol::ODESolution)
     sys = sol.prob.f.sys
     names = [states(sys); getproperty.(observed(sys), :lhs)]
     cols = ["timestamp" => sol.t; [string(n) => sol[n] for n in names]]
     DataFrame(cols)
 end
+
+
+#-----------------------------------------------------------------------------# Operations
+abstract type Operation end
 
 #-----------------------------------------------------------------------------# simulate
 struct Simulate <: Operation
