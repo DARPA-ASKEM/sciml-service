@@ -109,6 +109,8 @@ end
         ode_method = nothing
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 
+        dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",reduce(vcat,[string.("ensemble",i,"_", statenames) for i in 1:size(dfsim,2)÷length(statenames)]))
         @test names(dfparam) == string.(parameters(sys))
