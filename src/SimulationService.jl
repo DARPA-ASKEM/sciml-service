@@ -217,10 +217,11 @@ Base.@kwdef mutable struct DataServiceModel
     execution_payload::Config = Config()    # untouched JSON from request sent by HMI
     workflow_id::String = "IGNORED"         # (ignore)
     # Optional
-    description::String = ""                                # (ignore)
-    timestamp::Union{Nothing, DateTime} = nothing             # (ignore?)
+    name::Union{Nothing, String} = nothing                  # (ignore)
+    description::Union{Nothing, String} = nothing           # (ignore)
+    timestamp::Union{Nothing, DateTime} = nothing           # (ignore?)
     result_files::Union{Nothing, Vector{String}} = nothing  # URLs of result files in S3
-    status::Union{Nothing, String} = "queued"                # queued|running|complete|error|cancelled|failed"
+    status::Union{Nothing, String} = "queued"               # queued|running|complete|error|cancelled|failed"
     reason::Union{Nothing, String} = nothing                # why simulation failed (returned junk results)
     start_time::Union{Nothing, DateTime} = nothing          # when job started
     completed_time::Union{Nothing, DateTime} = nothing      # when job completed
