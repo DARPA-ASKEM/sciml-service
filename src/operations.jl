@@ -1,3 +1,84 @@
+
+#-----------------------------------------------------------------------------# amr_get
+# Things that extract info from AMR JSON
+# joshday: should all of these be moved into OperationRequest?
+
+# Get `ModelingToolkit.ODESystem` from AMR
+function amr_get(obj::Config, ::Type{ODESystem})
+    model = obj.model
+    ode = obj.semantics.ode
+
+    t = only(@variables t)
+    D = Differential(t)
+
+    statenames = [Symbol(s.id) for s in model.states]
+    statevars  = [only(@variables $s) for s in statenames]
+    statefuncs = [only(@variables $s(t)) for s in statenames]
+    obsnames   = [Symbol(o.id) for o in ode.observables]
+    obsvars    = [only(@variables $o) for o in obsnames]
+    obsfuncs   = [only(@variables $o(t)) for o in obsnames]
+    allvars    = [statevars; obsvars]
+    allfuncs   = [statefuncs; obsfuncs]
+
+    # get parameter values and state initial values
+    paramnames = [Symbol(x.id) for x in ode.parameters]
+    paramvars = [only(@parameters $x) for x in paramnames]
+    paramvals = [x.value for x in ode.parameters]
+    sym_defs = paramvars .=> paramvals
+    initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
+    initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
+
+    # build equations from transitions and rate expressions
+    rates = Dict(Symbol(x.target) => MathML.parse_str(x.expression_mathml) for x in ode.rates)
+    eqs = Dict(s => Num(0) for s in statenames)
+    for tr in model.transitions
+        ratelaw = rates[Symbol(tr.id)]
+        for s in tr.input
+            s = Symbol(s)
+            eqs[s] = eqs[s] - ratelaw
+        end
+        for s in tr.output
+            s = Symbol(s)
+            eqs[s] = eqs[s] + ratelaw
+        end
+    end
+
+    subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
+    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
+
+    for (o, ofunc) in zip(ode.observables, obsfuncs)
+        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
+        push!(eqs, ofunc ~ expr)
+    end
+
+    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
+end
+
+# priors
+function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
+    paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
+    namelist = nameof.(paramlist)
+
+    map(amr.semantics.ode.parameters) do p
+        @assert p.distribution.type === "StandardUniform1"
+        dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+        paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+    end
+end
+
+# data
+function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
+
+    statelist = states(sys)
+    statenames = string.(statelist)
+    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
+    tvals = df[:,"timestamp"]
+
+    map(statelist, statenames) do s,n
+        s => (tvals,df[:,n])
+    end
+end
+
 #--------------------------------------------------------------------# IntermediateResults callback
 # Publish intermediate results to RabbitMQ with at least `every` seconds inbetween callbacks
 mutable struct IntermediateResults
@@ -144,7 +225,9 @@ struct Ensemble <: Operation
     quantiles::Vector{Float64}
 end
 
-Ensemble(o::OperationRequest) = error("TODO")
+function Ensemble(o::OperationRequest)
+    sys = amr_get.(o.models, ODESystem)
+end
 
 function solve(o::Ensemble; callback)
     probs = [ODEProblem(s, [], o.timespan) for s in sys]

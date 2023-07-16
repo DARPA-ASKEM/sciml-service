@@ -61,13 +61,14 @@ function start!(; host=HOST, port=PORT, kw...)
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
     JobSchedulers.scheduler_start()
-    JobSchedulers.set_scheduler(max_cpu=0.6, max_mem=0.5, update_second=0.05, max_job=5000)
+    JobSchedulers.set_scheduler(max_cpu=JobSchedulers.SCHEDULER_MAX_CPU, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     Oxygen.@get     "/"                 health
     Oxygen.@get     "/status/{id}"      job_status
     Oxygen.@post    "/{operation_name}" operation
     Oxygen.@post    "/kill/{id}"        job_kill
 
+    # For /docs
     _dict(x) = string(x)
     _dict(x::Config) = Dict{String,Any}(string(k) => _dict(v) for (k,v) in x)
     Oxygen.mergeschema(_dict(openapi_spec[]))
@@ -110,86 +111,6 @@ JSON_HEADER = ["Content-Type" => "application/json"]
 get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
-
-#-----------------------------------------------------------------------------# amr_get
-# Things that extract info from AMR JSON
-# joshday: should all of these be moved into OperationRequest?
-
-# Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(obj::Config, ::Type{ODESystem})
-    model = obj.model
-    ode = obj.semantics.ode
-
-    t = only(@variables t)
-    D = Differential(t)
-
-    statenames = [Symbol(s.id) for s in model.states]
-    statevars  = [only(@variables $s) for s in statenames]
-    statefuncs = [only(@variables $s(t)) for s in statenames]
-    obsnames   = [Symbol(o.id) for o in ode.observables]
-    obsvars    = [only(@variables $o) for o in obsnames]
-    obsfuncs   = [only(@variables $o(t)) for o in obsnames]
-    allvars    = [statevars; obsvars]
-    allfuncs   = [statefuncs; obsfuncs]
-
-    # get parameter values and state initial values
-    paramnames = [Symbol(x.id) for x in ode.parameters]
-    paramvars = [only(@parameters $x) for x in paramnames]
-    paramvals = [x.value for x in ode.parameters]
-    sym_defs = paramvars .=> paramvals
-    initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
-    initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
-
-    # build equations from transitions and rate expressions
-    rates = Dict(Symbol(x.target) => MathML.parse_str(x.expression_mathml) for x in ode.rates)
-    eqs = Dict(s => Num(0) for s in statenames)
-    for tr in model.transitions
-        ratelaw = rates[Symbol(tr.id)]
-        for s in tr.input
-            s = Symbol(s)
-            eqs[s] = eqs[s] - ratelaw
-        end
-        for s in tr.output
-            s = Symbol(s)
-            eqs[s] = eqs[s] + ratelaw
-        end
-    end
-
-    subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
-    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
-
-    for (o, ofunc) in zip(ode.observables, obsfuncs)
-        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
-        push!(eqs, ofunc ~ expr)
-    end
-
-    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
-end
-
-# priors
-function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
-    paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
-    namelist = nameof.(paramlist)
-
-    map(amr.semantics.ode.parameters) do p
-        @assert p.distribution.type === "StandardUniform1"
-        dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
-        paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
-    end
-end
-
-# data
-function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
-
-    statelist = states(sys)
-    statenames = string.(statelist)
-    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
-    tvals = df[:,"timestamp"]
-
-    map(statelist, statenames) do s,n
-        s => (tvals,df[:,n])
-    end
-end
 
 #-----------------------------------------------------------------------------# job endpoints
 get_job(id::String) = JobSchedulers.job_query(jobhash(id))
