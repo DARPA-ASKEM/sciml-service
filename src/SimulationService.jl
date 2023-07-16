@@ -36,11 +36,42 @@ const simulation_schema = Ref{Config}()
 const petrinet_schema = Ref{Config}()
 const server_url = Ref{String}()
 
+#-----# Environmental Variables:
+# Server configuration
+const HOST = Ref{String}()
+const PORT = Ref{Int}()
+# Terrarium Data Service (TDS)
+const ENABLE_TDS = Ref{Bool}()
+const TDS_URL = Ref{String}()
+const TDS_RETRIES = Ref{Int}()
+# RabbitMQ (Note: assumes running on localhost)
+const RABBITMQ_ENABLED = Ref{Bool}()
+const RABBITMQ_LOGIN = Ref{String}()
+const RABBITMQ_PASSWORD = Ref{String}()
+const RABBITMQ_ROUTE = Ref{String}()
+const RABBITMQ_PORT = Ref{Int}()
+
 function __init__()
     if Threads.nthreads() == 1
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."
     end
-    if RABBITMQ_ENABLED
+    simulation_api_spec_main = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main"
+    openapi_spec[] = Config(YAML.load_file(download("$simulation_api_spec_main/openapi.yaml")))
+    simulation_schema[] = get_json("$simulation_api_spec_main/schemas/simulation.json")
+    petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
+
+    HOST[] = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
+    PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
+    ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
+    TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
+    TDS_RETRIES[] = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
+    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
+    RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
+    RABBITMQ_PASSWORD[] = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
+    RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
+    RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
+
+    if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
             (; MECHANISM = "AMQPLAIN", LOGIN=RABBITMQ_LOGIN, PASSWORD=RABBITMQ_PASSWORD)
         )
@@ -48,26 +79,23 @@ function __init__()
         @info typeof(AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true))
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
     end
-    simulation_api_spec_main = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main"
-    openapi_spec[] = Config(YAML.load_file(download("$simulation_api_spec_main/openapi.yaml")))
-    simulation_schema[] = get_json("$simulation_api_spec_main/schemas/simulation.json")
-    petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
 end
 
 #-----------------------------------------------------------------------------# start!
-function start!(; host=HOST, port=PORT, kw...)
+function start!(; host=HOST[], port=PORT[], kw...)
     @info "starting server on $host:$port.  nthreads=$(Threads.nthreads())"
-    ENABLE_TDS || @warn "TDS is disabled.  Some features will not work."
+    ENABLE_TDS[] || @warn "TDS is disabled.  Some features will not work."
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
     JobSchedulers.scheduler_start()
-    JobSchedulers.set_scheduler(max_cpu=0.6, max_mem=0.5, update_second=0.05, max_job=5000)
+    JobSchedulers.set_scheduler(max_cpu=JobSchedulers.SCHEDULER_MAX_CPU, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     Oxygen.@get     "/"                 health
     Oxygen.@get     "/status/{id}"      job_status
     Oxygen.@post    "/{operation_name}" operation
     Oxygen.@post    "/kill/{id}"        job_kill
 
+    # For /docs
     _dict(x) = string(x)
     _dict(x::Config) = Dict{String,Any}(string(k) => _dict(v) for (k,v) in x)
     Oxygen.mergeschema(_dict(openapi_spec[]))
@@ -86,110 +114,13 @@ function stop!()
     Oxygen.terminate()
 end
 
-#-----------------------------------------------------------------------------# settings
-# Server
-HOST                 = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
-PORT                 = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
-
-# Terrarium Data Service (TDS)
-ENABLE_TDS           = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
-TDS_URL              = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
-TDS_RETRIES          = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
-
-# RabbitMQ (Note: assumes running on localhost)
-RABBITMQ_ENABLED     = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
-RABBITMQ_LOGIN       = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
-RABBITMQ_PASSWORD    = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
-RABBITMQ_ROUTE       = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
-RABBITMQ_PORT        = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
-
 #-----------------------------------------------------------------------------# utils
-JSON_HEADER = ["Content-Type" => "application/json"]
+json_header = ["Content-Type" => "application/json"]
 
 # Get Config object from JSON at `url`
-get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, JSON_HEADER).body, T)
+get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, json_header).body, T)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
-
-#-----------------------------------------------------------------------------# amr_get
-# Things that extract info from AMR JSON
-# joshday: should all of these be moved into OperationRequest?
-
-# Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(obj::Config, ::Type{ODESystem})
-    model = obj.model
-    ode = obj.semantics.ode
-
-    t = only(@variables t)
-    D = Differential(t)
-
-    statenames = [Symbol(s.id) for s in model.states]
-    statevars  = [only(@variables $s) for s in statenames]
-    statefuncs = [only(@variables $s(t)) for s in statenames]
-    obsnames   = [Symbol(o.id) for o in ode.observables]
-    obsvars    = [only(@variables $o) for o in obsnames]
-    obsfuncs   = [only(@variables $o(t)) for o in obsnames]
-    allvars    = [statevars; obsvars]
-    allfuncs   = [statefuncs; obsfuncs]
-
-    # get parameter values and state initial values
-    paramnames = [Symbol(x.id) for x in ode.parameters]
-    paramvars = [only(@parameters $x) for x in paramnames]
-    paramvals = [x.value for x in ode.parameters]
-    sym_defs = paramvars .=> paramvals
-    initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
-    initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
-
-    # build equations from transitions and rate expressions
-    rates = Dict(Symbol(x.target) => MathML.parse_str(x.expression_mathml) for x in ode.rates)
-    eqs = Dict(s => Num(0) for s in statenames)
-    for tr in model.transitions
-        ratelaw = rates[Symbol(tr.id)]
-        for s in tr.input
-            s = Symbol(s)
-            eqs[s] = eqs[s] - ratelaw
-        end
-        for s in tr.output
-            s = Symbol(s)
-            eqs[s] = eqs[s] + ratelaw
-        end
-    end
-
-    subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
-    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
-
-    for (o, ofunc) in zip(ode.observables, obsfuncs)
-        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
-        push!(eqs, ofunc ~ expr)
-    end
-
-    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
-end
-
-# priors
-function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
-    paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
-    namelist = nameof.(paramlist)
-
-    map(amr.semantics.ode.parameters) do p
-        @assert p.distribution.type === "StandardUniform1"
-        dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
-        paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
-    end
-end
-
-# data
-function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
-
-    statelist = states(sys)
-    statenames = string.(statelist)
-    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
-    tvals = df[:,"timestamp"]
-
-    map(statelist, statenames) do s,n
-        s => (tvals,df[:,n])
-    end
-end
 
 #-----------------------------------------------------------------------------# job endpoints
 get_job(id::String) = JobSchedulers.job_query(jobhash(id))
@@ -229,7 +160,12 @@ function job_kill(::HTTP.Request, id::String)
 end
 
 #-----------------------------------------------------------------------------# health: GET /
-health(::HTTP.Request) = (; status="ok", RABBITMQ_ENABLED, RABBITMQ_ROUTE, ENABLE_TDS)
+health(::HTTP.Request) = (
+    status = "ok",
+    RABBITMQ_ENABLED = RABBITMQ_ENABLED[],
+    RABBITMQ_ROUTE = RABBITMQ_ROUTE[],
+    ENABLE_TDS = ENABLE_TDS[]
+)
 
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
@@ -264,7 +200,7 @@ Config(o::OperationRequest) = Config(k => getfield(o,k) for k in fieldnames(Oper
 
 function solve(o::OperationRequest)
     callback = get_callback(o)
-    T = OPERATIONS_LIST[o.operation]
+    T = operations2type[o.operation]
     op = T(o)
     o.result = solve(op; callback)
 end
@@ -275,9 +211,9 @@ end
 # you can HTTP.get("$TDS_URL/simulation") and the JSON3.read(body, DataServiceModel)
 Base.@kwdef mutable struct DataServiceModel
     # Required
-    id::String = "UNINITIALIZED_ID"         # matches with our `id`
+    id::String = ""         # matches with our `id`
     engine::String = "sciml"                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
-    type::String = "uninitialized"          # :calibration, :calibration_simulation, :ensemble, :simulation
+    type::String = ""          # :calibration, :calibration_simulation, :ensemble, :simulation
     execution_payload::Config = Config()    # untouched JSON from request sent by HMI
     workflow_id::String = "IGNORED"         # (ignore)
     # Optional
@@ -314,15 +250,15 @@ end
 # Each function in this section needs to handle both cases: ENABLE_TDS=true and ENABLE_TDS=false
 
 function DataServiceModel(id::String)
-    if !ENABLE_TDS
-        @warn "TDS disabled - DataServiceModel with argument $id"
+    if !ENABLE_TDS[]
+        @warn "TDS disabled - `DataServiceModel` with argument $id"
         return DataServiceModel()  # TODO: mock TDS
     end
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
-    delays = fill(1, TDS_RETRIES)
+    delays = fill(1, TDS_RETRIES[])
 
     try
-        res = retry(() -> HTTP.get("$TDS_URL/simulations/$id"); delays, check)()
+        res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
         return JSON3.read(res.body, DataServiceModel)
     catch
         return error("No simulation found in TDS with id=$id.")
@@ -330,19 +266,19 @@ function DataServiceModel(id::String)
 end
 
 function get_model(id::String)
-    if !ENABLE_TDS
-        @warn "TDS disabled - get_model with argument $id"
+    if !ENABLE_TDS[]
+        @warn "TDS disabled - `get_model` with argument $id"
         return Config()  # TODO: mock TDS
     end
-    get_json("$TDS_URL/model_configurations/$id").configuration
+    get_json("$(TDS_URL[])/model_configurations/$id").configuration
 end
 
 function get_dataset(obj::Config)
-    if !ENABLE_TDS
-        @warn "TDS disabled - get_dataset with argument $obj"
+    if !ENABLE_TDS[]
+        @warn "TDS disabled - `get_dataset` with argument $obj"
         return DataFrame()  # TODO: mock tds
     end
-    tds_url = "$TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
+    tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)  # !!! <-- ONLY FAILURE ON OUR TEST INSTANCE OF TDS !!!
     return rename!(df, Dict{String,String}(string(k) => string(v) for (k,v) in obj.mappings))
@@ -350,8 +286,8 @@ end
 
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
-    if !RABBITMQ_ENABLED
-        @warn "RabbitMQ disabled - publish_to_rabbitmq with argument $content"
+    if !RABBITMQ_ENABLED[]
+        @warn "RabbitMQ disabled - `publish_to_rabbitmq` with argument $content"
         return content
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
@@ -365,18 +301,18 @@ publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 function create(o::OperationRequest)
     m = DataServiceModel(o)
     body = JSON3.write(m)
-    if !ENABLE_TDS
-         @warn "TDS disabled - create with JSON $body"
+    if !ENABLE_TDS[]
+         @warn "TDS disabled - `create` with JSON $body"
          return body
     end
-    HTTP.post("$TDS_URL/simulations/", JSON_HEADER; body)
+    HTTP.post("$(TDS_URL[])/simulations/", json_header; body)
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
 # kw args and their types much match field::fieldtype in DataServiceModel
 function update(o::OperationRequest; kw...)
-    if !ENABLE_TDS
-        @warn "TDS disabled - update OperationRequest with id=$(o.id), $kw"
+    if !ENABLE_TDS[]
+        @warn "TDS disabled - `update` OperationRequest with id=$(o.id), $kw"
         return kw
     end
     m = DataServiceModel(o.id)
@@ -385,7 +321,7 @@ function update(o::OperationRequest; kw...)
             setproperty!(m, k, v) :
             setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
-    HTTP.put("$TDS_URL/simulations/$(o.id)", JSON_HEADER; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", json_header; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
@@ -402,14 +338,14 @@ function complete(o::OperationRequest)
         # everything else as JSON file
         body = JSON3.write(o.result)
         filename = "result.json"
-        header = JSON_HEADER
+        header = json_header
     end
-    if !ENABLE_TDS
-        @warn "TDS disabled - complete(id=$(o.id)): summary(body) = $(summary(body))"
+    if !ENABLE_TDS[]
+        @warn "TDS disabled - `complete(id=$(o.id))`: summary(body) = $(summary(body))"
         return body
     end
 
-    tds_url = "$TDS_URL/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
+    tds_url = "$(TDS_URL[])/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [s3_url])
@@ -438,16 +374,16 @@ function operation(request::HTTP.Request, operation_name::String)
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin
-            try
+            # try
                 @info "Updating job $(o.id)"
                 update(o; status = "running", start_time = timestamp()) # 4
                 @info "Solving job $(o.id)"
                 solve(o) # 5
                 @info "Completing job $(o.id)"
                 complete(o)  # 6, 7
-            catch
-                update(o; status = "error")
-            end
+            # catch ex
+            #     update(o; status = "error", reason = string(ex))
+            # end
         end
     )
     job.id = jobhash(o.id)
