@@ -37,7 +37,6 @@ api.env
 
 ### Julia ###
 test/logs/
-Manifest.toml
 
 ### Project ###
 # Config
