@@ -4,6 +4,7 @@ WORKDIR /simulation-service
 # Install dependencies
 # COPY Manifest.toml  /simulation-service/
 COPY Project.toml /simulation-service/
+COPY Manifest.toml /simulation-service/
 ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 
