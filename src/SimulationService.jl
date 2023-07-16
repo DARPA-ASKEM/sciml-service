@@ -88,13 +88,14 @@ function start!(; host=HOST[], port=PORT[], kw...)
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
     JobSchedulers.scheduler_start()
-    JobSchedulers.set_scheduler(max_cpu=0.6, max_mem=0.5, update_second=0.05, max_job=5000)
+    JobSchedulers.set_scheduler(max_cpu=JobSchedulers.SCHEDULER_MAX_CPU, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
     Oxygen.@get     "/"                 health
     Oxygen.@get     "/status/{id}"      job_status
     Oxygen.@post    "/{operation_name}" operation
     Oxygen.@post    "/kill/{id}"        job_kill
 
+    # For /docs
     _dict(x) = string(x)
     _dict(x::Config) = Dict{String,Any}(string(k) => _dict(v) for (k,v) in x)
     Oxygen.mergeschema(_dict(openapi_spec[]))
@@ -254,10 +255,10 @@ function DataServiceModel(id::String)
         return DataServiceModel()  # TODO: mock TDS
     end
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
-    delays = fill(1, TDS_RETRIES)
+    delays = fill(1, TDS_RETRIES[])
 
     try
-        res = retry(() -> HTTP.get("$TDS_URL/simulations/$id"); delays, check)()
+        res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
         return JSON3.read(res.body, DataServiceModel)
     catch
         return error("No simulation found in TDS with id=$id.")
@@ -269,7 +270,7 @@ function get_model(id::String)
         @warn "TDS disabled - `get_model` with argument $id"
         return Config()  # TODO: mock TDS
     end
-    get_json("$TDS_URL/model_configurations/$id").configuration
+    get_json("$(TDS_URL[])/model_configurations/$id").configuration
 end
 
 function get_dataset(obj::Config)
@@ -277,7 +278,7 @@ function get_dataset(obj::Config)
         @warn "TDS disabled - `get_dataset` with argument $obj"
         return DataFrame()  # TODO: mock tds
     end
-    tds_url = "$TDS_URL/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
+    tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)  # !!! <-- ONLY FAILURE ON OUR TEST INSTANCE OF TDS !!!
     return rename!(df, Dict{String,String}(string(k) => string(v) for (k,v) in obj.mappings))
@@ -304,7 +305,7 @@ function create(o::OperationRequest)
          @warn "TDS disabled - `create` with JSON $body"
          return body
     end
-    HTTP.post("$TDS_URL/simulations/", json_header; body)
+    HTTP.post("$(TDS_URL[])/simulations/", json_header; body)
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
@@ -320,7 +321,7 @@ function update(o::OperationRequest; kw...)
             setproperty!(m, k, v) :
             setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
-    HTTP.put("$TDS_URL/simulations/$(o.id)", json_header; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", json_header; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
@@ -344,7 +345,7 @@ function complete(o::OperationRequest)
         return body
     end
 
-    tds_url = "$TDS_URL/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
+    tds_url = "$(TDS_URL[])/simulations/sciml-$(o.id)/upload-url?filename=$filename)"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [s3_url])

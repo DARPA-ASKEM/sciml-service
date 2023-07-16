@@ -225,7 +225,9 @@ struct Ensemble <: Operation
     quantiles::Vector{Float64}
 end
 
-Ensemble(o::OperationRequest) = error("TODO")
+function Ensemble(o::OperationRequest)
+    sys = amr_get.(o.models, ODESystem)
+end
 
 function solve(o::Ensemble; callback)
     probs = [ODEProblem(s, [], o.timespan) for s in sys]
