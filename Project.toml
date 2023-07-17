@@ -1,7 +1,7 @@
 name = "SimulationService"
 uuid = "e66378d9-a322-4933-8764-0ce0bcab4993"
 authors = ["Five Grant <5@fivegrant.com>"]
-version = "0.11.0"
+version = "0.12.0"
 
 [deps]
 AMQPClient = "79c8b4cd-a41a-55fa-907c-fab5288e1383"
