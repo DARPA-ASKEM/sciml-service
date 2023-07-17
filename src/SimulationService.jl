@@ -183,6 +183,13 @@ Base.@kwdef mutable struct OperationRequest
     result::Any = nothing                               # store result of job
 end
 
+function Base.show(io::IO, o::OperationRequest)
+    println(io, "OperationRequest")
+    println(io, "  obj with keys: $(keys(o.obj))")
+    println(io, "             id: $(o.id)")
+    println(io, "      operation: $(o.operation)")
+end
+
 function OperationRequest(req::HTTP.Request, operation_name::String)
     o = OperationRequest()
     o.obj = JSON3.read(req.body)
@@ -196,7 +203,7 @@ function OperationRequest(req::HTTP.Request, operation_name::String)
         k == :model ? (o.model = v) :
         k == :local_model_file ? (o.model = JSON3.read(v, Config)) :  # For testing only
         k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :      # For testing only
-        @info "Unprocessed key: $k"
+        nothing
     end
     return o
 end
@@ -204,6 +211,7 @@ end
 Config(o::OperationRequest) = Config(k => getfield(o,k) for k in fieldnames(OperationRequest))
 
 function solve(o::OperationRequest)
+    @info "solve: $o"
     callback = get_callback(o)
     T = operations2type[o.operation]
     op = T(o)
@@ -305,6 +313,7 @@ publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
 # initialize the DataServiceModel in TDS: POST /simulations/{id}
 function create(o::OperationRequest)
+    @info "creating model in TDS from: $o"
     m = DataServiceModel(o)
     body = JSON3.write(m)
     if !ENABLE_TDS[]
@@ -317,6 +326,7 @@ end
 # update the DataServiceModel in TDS: PUT /simulations/{id}
 # kw args and their types much match field::fieldtype in DataServiceModel
 function update(o::OperationRequest; kw...)
+    @info "updating model $(o.id) in TDS: $(NamedTuple(kw))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `update` OperationRequest with id=$(o.id), $kw"
         return kw
@@ -332,6 +342,7 @@ end
 
 function complete(o::OperationRequest)
     isnothing(o.result) && error("No result.  Run `solve(o::OperationRequest)` first.")
+    @info "completing model $(o.id) in TDS: summary(result) = $(summary(o.result))"
 
     if o.result isa DataFrame
         # DataFrame uploaded as CSV file
@@ -374,18 +385,14 @@ last_job = Ref{JobSchedulers.Job}()
 # 6) We upload results to S3: PUT $url
 # 7) We update simulation in TDS(status="complete", complete_time=<datetime>): PUT /simulations/$id
 function operation(request::HTTP.Request, operation_name::String)
-    @info "operation requested: $operation_name"
+    @info "Creating OperationRequest from POST to route $operation_name"
     o = OperationRequest(request, operation_name)  # 1, 3
-    @info "Creating in TDS (id=$(o.id)))..."
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin
             try
-                @info "Updating job $(o.id)"
                 update(o; status = "running", start_time = timestamp()) # 4
-                @info "Solving job $(o.id)"
                 solve(o) # 5
-                @info "Completing job $(o.id)"
                 complete(o)  # 6, 7
             catch ex
                 update(o; status = "error", reason = string(ex))
