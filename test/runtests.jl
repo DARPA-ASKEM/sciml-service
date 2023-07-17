@@ -67,6 +67,38 @@ end
 
 #-----------------------------------------------------------# DataServiceModel and OperationRequest
 @testset "DataServiceModel and OperationRequest" begin
+    @testset "DataServiceModel" begin
+        example = """{
+            "id": "sciml-dfca06dd-b044-436f-a744-0d0a30cc130f",
+            "name": null,
+            "description": null,
+            "timestamp": "2023-07-16T21:00:47",
+            "engine": "sciml",
+            "type": "simulation",
+            "status": "queued",
+            "execution_payload": {
+              "engine": "sciml",
+              "model_config_id": "84d0b51d-7d4c-497f-98fa-a00e31c344db",
+              "timespan": {
+                "start": 1,
+                "end": 100
+              },
+              "num_samples": null,
+              "extra": {},
+              "interventions": null
+            },
+            "start_time": null,
+            "completed_time": null,
+            "workflow_id": "dummy",
+            "user_id": 0,
+            "project_id": 0,
+            "result_files": []
+        }"""
+        @test JSON3.read(example, DataServiceModel) isa DataServiceModel
+
+    end
+
+
     m = DataServiceModel()
     @test m.engine == "sciml"
     @test m.id == ""
