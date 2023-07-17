@@ -19,6 +19,7 @@ import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
 import OpenAPI
 import Oxygen
+import Pkg
 import SciMLBase: SciMLBase, DiscreteCallback, solve
 import StructTypes
 import SwaggerMarkdown
@@ -79,6 +80,9 @@ function __init__()
         @info typeof(AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true))
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
     end
+
+    v = Pkg.Types.read_project("Project.toml").version
+    @info "__init__ SimulationService with Version = $v"
 end
 
 #-----------------------------------------------------------------------------# start!
@@ -182,6 +186,7 @@ end
 function OperationRequest(req::HTTP.Request, operation_name::String)
     o = OperationRequest()
     o.obj = JSON3.read(req.body)
+    @info "OperationRequest recieved to route /$operation_name: $(String(req.body))"
     o.operation = Symbol(operation_name)
     for (k,v) in o.obj
         k == :model_config_id ? (o.model = get_model(v)) :
@@ -375,16 +380,16 @@ function operation(request::HTTP.Request, operation_name::String)
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin
-            # try
+            try
                 @info "Updating job $(o.id)"
                 update(o; status = "running", start_time = timestamp()) # 4
                 @info "Solving job $(o.id)"
                 solve(o) # 5
                 @info "Completing job $(o.id)"
                 complete(o)  # 6, 7
-            # catch ex
-            #     update(o; status = "error", reason = string(ex))
-            # end
+            catch ex
+                update(o; status = "error", reason = string(ex))
+            end
         end
     )
     job.id = jobhash(o.id)
