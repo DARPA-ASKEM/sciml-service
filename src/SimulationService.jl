@@ -264,6 +264,7 @@ end
 # Each function in this section needs to handle both cases: ENABLE_TDS=true and ENABLE_TDS=false
 
 function DataServiceModel(id::String)
+    @info "DataServiceModel($(repr(id)))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `DataServiceModel` with argument $id"
         return DataServiceModel()  # TODO: mock TDS
@@ -280,6 +281,7 @@ function DataServiceModel(id::String)
 end
 
 function get_model(id::String)
+    @info "get_model($(repr(id)))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `get_model` with argument $id"
         return Config()  # TODO: mock TDS
@@ -288,6 +290,7 @@ function get_model(id::String)
 end
 
 function get_dataset(obj::Config)
+    @info "get_dataset with obj = $(JSON3.write(obj))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `get_dataset` with argument $obj"
         return DataFrame()  # TODO: mock tds
