@@ -297,7 +297,7 @@ function get_dataset(obj::Config)
     end
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
-    df = CSV.read(download(s3_url), DataFrame)  # !!! <-- ONLY FAILURE ON OUR TEST INSTANCE OF TDS !!!
+    df = CSV.read(download(s3_url), DataFrame)
     return rename!(df, Dict{String,String}(string(k) => string(v) for (k,v) in obj.mappings))
 end
 
