@@ -26,7 +26,7 @@ simulate_payloads = JSON3.write.([
 
 calibrate_payloads = JSON3.write.([
     let
-        (; engine, timespan, extra) = JSON3.read(read(here("examples", "calibrate_example2", "request-calibrate-no-integration.json")))
+        (; engine, timespan, extra) = JSON3.read(read(here("examples", "calibrate_example1", "request-calibrate-no-integration.json")))
         (;
             local_csv_file = here("examples", "calibrate_example1", "dataset.csv"),
             local_model_file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"),
