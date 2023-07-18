@@ -21,15 +21,15 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 #-----------------------------------------------------------------------# JSON payloads for testing
 # route => payload
 simulate_payloads = JSON3.write.([
-    (local_model_file=here("examples", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
+    (local_model_file=here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
     let
-        (; engine, timespan, extra) = JSON3.read(read(here("examples", "request-calibrate-no-integration.json")))
+        (; engine, timespan, extra) = JSON3.read(read(here("examples", "calibrate_example2", "request-calibrate-no-integration.json")))
         (;
-            local_csv_file = here("examples", "dataset.csv"),
-            local_model_file = here("examples", "BIOMD0000000955_askenet.json"),
+            local_csv_file = here("examples", "calibrate_example1", "dataset.csv"),
+            local_model_file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"),
             engine, timespan, extra
         )
 
@@ -46,7 +46,7 @@ end
 
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
-    file = here("examples", "BIOMD0000000955_askenet.json")
+    file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
     amr = JSON3.read(read(file))
     sys = SimulationService.amr_get(amr, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
@@ -58,7 +58,7 @@ end
     @test string.(first.(priors)) == string.(parameters(sys))
     @test last.(priors) isa Vector{Uniform{Float64}}
 
-    df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+    df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
     @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
     @test string.(first.(data)) == string.(states(sys))
@@ -129,11 +129,11 @@ end
         @test extrema(df.timestamp) == (0.0, 99.0)
     end
     @testset "calibrate" begin
-        file = here("examples", "BIOMD0000000955_askenet.json")
+        file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
         amr = JSON3.read(read(file))
         sys = SimulationService.amr_get(amr, ODESystem)
         priors = SimulationService.amr_get(amr, sys, Val(:priors))
-        df = CSV.read(here("examples", "dataset.csv"), DataFrame)
+        df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
