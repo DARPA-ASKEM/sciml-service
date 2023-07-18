@@ -4,7 +4,7 @@
 # The AMR is the `model` field of an OperationRequest
 
 # Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(amr::Config, ::Type{ODESystem})
+function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     @info "amr_get ODESystem"
     model = amr.model
     ode = amr.semantics.ode
@@ -56,7 +56,7 @@ function amr_get(amr::Config, ::Type{ODESystem})
 end
 
 # priors
-function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
+function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
     @info "amr_get priors"
     paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
     namelist = nameof.(paramlist)
@@ -65,6 +65,19 @@ function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
         @assert p.distribution.type === "StandardUniform1"
         dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
         paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+    end
+end
+
+# data
+function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
+
+    statelist = states(sys)
+    statenames = string.(statelist)
+    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
+    tvals = df[:,"timestamp"]
+
+    map(statelist, statenames) do s,n
+        s => (tvals,df[:,n])
     end
 end
 
@@ -135,17 +148,7 @@ end
 function Calibrate(o::OperationRequest)
     sys = amr_get(o.model, ODESystem)
     priors = amr_get(o.model, sys, Val(:priors))
-
-    data = let
-        df = o.df
-        statelist = states(sys)
-        statenames = string.(statelist)
-        statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
-        tvals = df[:,"timestamp"]
-        map(statelist, statenames) do s,n
-            s => (tvals,df[:,n])
-        end
-    end
+    data = amr_get(o.df, sys, Val(:data))
 
     num_chains = 4
     num_iterations = 100

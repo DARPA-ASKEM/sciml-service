@@ -31,7 +31,7 @@ export start!, stop!
 
 #-----------------------------------------------------------------------------# __init__
 const rabbitmq_channel = Ref{Any}()
-const openapi_spec = Ref{JSON3.Object}()
+const openapi_spec = Ref{Dict}()
 const simulation_schema = Ref{JSON3.Object}()
 const petrinet_schema = Ref{JSON3.Object}()
 const server_url = Ref{String}()
@@ -56,7 +56,7 @@ function __init__()
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."
     end
     simulation_api_spec_main = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main"
-    openapi_spec[] = Dict(YAML.load_file(download("$simulation_api_spec_main/openapi.yaml")))
+    openapi_spec[] = YAML.load_file(download("$simulation_api_spec_main/openapi.yaml"))
     simulation_schema[] = get_json("$simulation_api_spec_main/schemas/simulation.json")
     petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
 
@@ -118,7 +118,7 @@ end
 #-----------------------------------------------------------------------------# utils
 json_header = ["Content-Type" => "application/json"]
 
-get_json(url::String, T::Type = JSON3.Object) = JSON3.read(HTTP.get(url, json_header).body, T)
+get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
@@ -180,7 +180,7 @@ Base.@kwdef mutable struct OperationRequest
 end
 
 function Base.show(io::IO, o::OperationRequest)
-    println(io, "OperationRequest(obj keys: $(keys(o.obj)), id=$(repr(o.id))), operation=$(repr(o.operation))")
+    println(io, "OperationRequest(id=$(repr(o.id)), operation=$(repr(o.operation)))")
 end
 
 function OperationRequest(req::HTTP.Request, operation_name::String)
@@ -198,8 +198,11 @@ function OperationRequest(req::HTTP.Request, operation_name::String)
         k == :timespan ? (o.timespan = (Float64(v.start), Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
-        k == :local_model_file ? (o.model = JSON3.read(v)) :  # For testing only
-        k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :      # For testing only
+
+        # For testing only:
+        k == :local_model_configuration_file ? (o.model = JSON.read(v).configuration) :
+        k == :local_model_file ? (o.model = JSON3.read(v)) :
+        k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :
         nothing
     end
     return o
@@ -239,6 +242,9 @@ end
 # For JSON3 read/write
 StructTypes.StructType(::Type{DataServiceModel}) = StructTypes.Mutable()
 
+# PIRACY to fix JSON3.read(str, DataServiceModel)
+JSON3.Object(x::AbstractDict) = JSON3.read(JSON3.write(x))
+
 # Initialize a DataServiceModel
 operation_to_dsm_type = Dict(
     :simulate => "simulation",
@@ -254,48 +260,7 @@ function DataServiceModel(o::OperationRequest)
     return m
 end
 
-#-----------------------------------------------------------------------------# TDS interactions
-# Each function in this section needs to handle both cases: ENABLE_TDS=true and ENABLE_TDS=false
-
-function DataServiceModel(id::String)
-    @info "DataServiceModel($(repr(id)))"
-    if !ENABLE_TDS[]
-        @warn "TDS disabled - `DataServiceModel` with argument $id"
-        return DataServiceModel()  # TODO: mock TDS
-    end
-    check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
-    delays = fill(1, TDS_RETRIES[])
-
-    try
-        res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
-        return JSON3.read(res.body, DataServiceModel)
-    catch ex
-        return error("Failed to retrieve simulation in TDS with id=$(repr(id)).")
-        rethrow(ex)
-    end
-end
-
-function get_model(id::String)
-    @info "get_model($(repr(id)))"
-    if !ENABLE_TDS[]
-        @warn "TDS disabled - `get_model` with argument $id"
-        return JSON3.Object()  # TODO: mock TDS
-    end
-    get_json("$(TDS_URL[])/model_configurations/$id").configuration
-end
-
-function get_dataset(obj::JSON3.Object)
-    @info "get_dataset with obj = $(JSON3.write(obj))"
-    if !ENABLE_TDS[]
-        @warn "TDS disabled - `get_dataset` with argument $obj"
-        return DataFrame()  # TODO: mock tds
-    end
-    tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
-    s3_url = get_json(tds_url).url
-    df = CSV.read(download(s3_url), DataFrame)
-    return rename!(df, Dict{String,String}(string(k) => string(v) for (k,v) in obj.mappings))
-end
-
+#-----------------------------------------------------------------------------# publish_to_rabbitmq
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
     if !RABBITMQ_ENABLED[]
@@ -309,13 +274,45 @@ end
 publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
 
+#----------------------------------------------------------------------------# TDS GET interactions
+# Each function in this section assumes ENABLE_TDS=true
+
+function DataServiceModel(id::String)
+    @info "DataServiceModel($(repr(id)))"
+    check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
+    delays = fill(1, TDS_RETRIES[])
+    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
+    return JSON3.read(res.body, DataServiceModel)
+end
+
+function get_model(id::String)
+    @info "get_model($(repr(id)))"
+    get_json("$(TDS_URL[])/model_configurations/$id").configuration
+end
+
+function get_dataset(obj::JSON3.Object)
+    @info "get_dataset with obj = $(JSON3.write(obj))"
+    tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
+    s3_url = get_json(tds_url).url
+    df = CSV.read(download(s3_url), DataFrame)
+    return haskey(obj, :mappings) ?
+        rename!(df, Dict{String,String}(obj.mappings)) :
+        df
+end
+
+
+#-----------------------------------------------------------------------# TDS PUT/POST interactions
+# Functions in this section:
+# - If ENABLE_TDS=true, they PUT/POST a JSON payload to the TDS
+# - If ENABLE_TDS=false, they log and return the JSON payload they would have PUT/POST
+
 # initialize the DataServiceModel in TDS: POST /simulations/{id}
 function create(o::OperationRequest)
-    @info "creating model in TDS from: $o"
+    @info "create: $o"
     m = DataServiceModel(o)
     body = JSON3.write(m)
     if !ENABLE_TDS[]
-         @warn "TDS disabled - `create` with JSON $body"
+         @warn "TDS disabled - `create` $o: $body"
          return body
     end
     HTTP.post("$(TDS_URL[])/simulations/", json_header; body)
@@ -324,10 +321,10 @@ end
 # update the DataServiceModel in TDS: PUT /simulations/{id}
 # kw args and their types much match field::fieldtype in DataServiceModel
 function update(o::OperationRequest; kw...)
-    @info "updating model $(o.id) in TDS: $(JSON3.write(kw))"
+    @info "update $o"
     if !ENABLE_TDS[]
-        @warn "TDS disabled - `update` OperationRequest with id=$(o.id), $kw"
-        return kw
+        @warn "TDS disabled - `update` $o: $(JSON3.write(kw))"
+        return JSON3.write(kw)
     end
     m = DataServiceModel(o.id)
     for (k,v) in kw
@@ -340,7 +337,7 @@ end
 
 function complete(o::OperationRequest)
     isnothing(o.result) && error("No result.  Run `solve(o::OperationRequest)` first.")
-    @info "completing model $(o.id) in TDS: summary(result) = $(summary(o.result))"
+    @info "complete $o"
 
     if o.result isa DataFrame
         # DataFrame uploaded as CSV file
@@ -356,7 +353,7 @@ function complete(o::OperationRequest)
         header = json_header
     end
     if !ENABLE_TDS[]
-        @warn "TDS disabled - `complete(id=$(o.id))`: summary(body) = $(summary(body))"
+        @warn "TDS disabled - `complete` $o: summary(body) = $(summary(body))"
         return body
     end
 

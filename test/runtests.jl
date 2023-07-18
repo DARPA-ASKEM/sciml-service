@@ -21,17 +21,18 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 #-----------------------------------------------------------------------# JSON payloads for testing
 # route => payload
 simulate_payloads = JSON3.write.([
-    @config(local_model_file=here("examples", "BIOMD0000000955_askenet.json"), timespan.start=0, timespan.end=100),
+    (local_model_file=here("examples", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
     let
-        obj = JSON3.read(read(here("examples", "request-calibrate-no-integration.json")))
-        delete!(obj, :model_config_id)
-        delete!(obj, :dataset)
-        obj.local_csv_file = here("examples", "dataset.csv")
-        obj.local_model_file = here("examples", "BIOMD0000000955_askenet.json")
-        obj
+        (; engine, timespan, extra) = JSON3.read(read(here("examples", "request-calibrate-no-integration.json")))
+        (;
+            local_csv_file = here("examples", "dataset.csv"),
+            local_model_file = here("examples", "BIOMD0000000955_askenet.json"),
+            engine, timespan, extra
+        )
+
     end
 ])
 

@@ -29,21 +29,20 @@ docker compose --file docker/docker-compose.yml up --build
 ## Example Request with Local Server in Julia
 
 ```julia
-using SimulationService, HTTP, JSON3, EasyConfig
+using SimulationService, HTTP, JSON3
 
 # Start the server/job scheduler without Terrarium Data Service
-SimulationService.ENABLE_TDS = false
+SimulationService.ENABLE_TDS[] = false
 start!()
 
 url = SimulationService.server_url[]  # server url
 @info JSON3.read(HTTP.get(url).body) # Is server running? (status == "ok")
 
 # JSON in ASKEM Model Representation
-model = JSON3.read(read("./examples/BIOMD0000000955_askenet.json"), Config)
+model = JSON3.read(read("./examples/BIOMD0000000955_askenet.json"))
 
-# You can directly provide AMR JSON with the `test_amr` key
-# (Note: this does not entirely look like a request that would be seen in production)
-json = @config(model = model, timespan.start=0, timespan.end=90, engine="sciml")
+# You can directly provide AMR JSON with the `model` key
+json = (; model, timespan = (; start=0, var"end"=90), engine="sciml")
 
 body = JSON3.write(json)
 
@@ -96,7 +95,7 @@ all the necessary info for running/solving the model and returning results.
 
 1. Request arrives
 2. We process the keys into useful things for `OperationRequest`
-    - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::Config` in `OperationRequest`).
+    - `model_config_id(s)` --> Retrieve model(s) in AMR format from TDS (`model::JSON3.Object` in `OperationRequest`).
     - `dataset` --> Retrieve dataset from TDS (`df::DataFrame` in `OperationRequest`).
 3. We start the job via JobSchedulers.jl, which performs:
     - Update job status in TDS to "running".
