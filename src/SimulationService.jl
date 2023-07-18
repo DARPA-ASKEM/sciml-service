@@ -2,7 +2,7 @@ module SimulationService
 
 import AMQPClient
 import CSV
-import DataFrames: DataFrame, rename!
+import DataFrames: DataFrame, names, rename!
 import Dates: Dates, DateTime, now, UTC
 import DifferentialEquations
 import Downloads: download
@@ -341,6 +341,9 @@ function complete(o::OperationRequest)
 
     if o.result isa DataFrame
         # DataFrame uploaded as CSV file
+        for nm in names(o.result)
+            rename!(o.result, nm => replace(nm, "(t)" => ""))
+        end
         io = IOBuffer()
         CSV.write(io, o.result)
         body = String(take!(io))
