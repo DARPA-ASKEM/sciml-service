@@ -32,11 +32,21 @@ obj = get_model(model_config_id)
 #-----------------------------------------------------------------------------# get_dataset ✓
 datasets = get_json("$(TDS_URL[])/datasets")
 
+# with mappings
 data_obj = JSON3.read(JSON3.write((;
     id = datasets[1].id,
     name = datasets[1].name,
     filename = datasets[1].file_names[1],
-    mappings = (; Ailing = "A")
+    mappings = (; Ailing ="A", Diagnosed="D", Healed="H")
+)))
+
+get_dataset(data_obj)
+
+# without mappings
+data_obj = JSON3.read(JSON3.write((;
+    id = datasets[1].id,
+    name = datasets[1].name,
+    filename = datasets[1].file_names[1]
 )))
 
 get_dataset(data_obj)
