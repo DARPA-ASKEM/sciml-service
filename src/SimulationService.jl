@@ -1,5 +1,8 @@
 module SimulationService
 
+import PrecompileTools: @recompile_invalidations, @compile_workload
+
+@recompile_invalidations begin
 import AMQPClient
 import CSV
 import DataFrames: DataFrame, names, rename!
@@ -26,6 +29,7 @@ import SymbolicUtils
 import UUIDs
 import YAML
 import Statistics
+end
 
 export start!, stop!
 
@@ -415,5 +419,6 @@ end
 #-----------------------------------------------------------------------------# operations.jl
 include("operations.jl")
 
+include("precompile.jl")
 
 end # module
