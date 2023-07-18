@@ -3,7 +3,6 @@ using CSV
 using DataFrames
 using Dates
 using Distributions
-using EasyConfig
 using HTTP
 using JSON3
 using ModelingToolkit
@@ -27,7 +26,7 @@ simulate_payloads = JSON3.write.([
 
 calibrate_payloads = JSON3.write.([
     let
-        obj = JSON3.read(read(here("examples", "request-calibrate-no-integration.json")), Config)
+        obj = JSON3.read(read(here("examples", "request-calibrate-no-integration.json")))
         delete!(obj, :model_config_id)
         delete!(obj, :dataset)
         obj.local_csv_file = here("examples", "dataset.csv")
@@ -41,13 +40,13 @@ ensemble_payloads = JSON3.write.([])
 #-----------------------------------------------------------------------------# utils
 @testset "utils" begin
     obj = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
-    @test obj isa Config
+    @test obj isa JSON3.Object
 end
 
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
     file = here("examples", "BIOMD0000000955_askenet.json")
-    amr = JSON3.read(read(file), Config)
+    amr = JSON3.read(read(file))
     sys = SimulationService.amr_get(amr, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
@@ -112,7 +111,7 @@ end
     @test DataServiceModel(o).id == o.id
 
     # Test that `create` returns JSON with the required keys
-    create_obj = JSON3.read(SimulationService.create(o), Config)
+    create_obj = JSON3.read(SimulationService.create(o))
     @test all(haskey(create_obj, k) for k in [:id, :engine, :type, :execution_payload, :workflow_id])
 end
 
@@ -130,7 +129,7 @@ end
     end
     @testset "calibrate" begin
         file = here("examples", "BIOMD0000000955_askenet.json")
-        amr = JSON3.read(read(file), Config)
+        amr = JSON3.read(read(file))
         sys = SimulationService.amr_get(amr, ODESystem)
         priors = SimulationService.amr_get(amr, sys, Val(:priors))
         df = CSV.read(here("examples", "dataset.csv"), DataFrame)

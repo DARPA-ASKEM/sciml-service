@@ -7,13 +7,12 @@ import Dates: Dates, DateTime, now, UTC
 import DifferentialEquations
 import Downloads: download
 import Distributions: Uniform
-import EasyConfig: EasyConfig, Config
 import EasyModelAnalysis
 import HTTP
 import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
-import JSONSchema
+# import JSONSchema (TODO: validate requests)
 import LinearAlgebra: norm
 import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
@@ -32,9 +31,9 @@ export start!, stop!
 
 #-----------------------------------------------------------------------------# __init__
 const rabbitmq_channel = Ref{Any}()
-const openapi_spec = Ref{Config}()
-const simulation_schema = Ref{Config}()
-const petrinet_schema = Ref{Config}()
+const openapi_spec = Ref{JSON3.Object}()
+const simulation_schema = Ref{JSON3.Object}()
+const petrinet_schema = Ref{JSON3.Object}()
 const server_url = Ref{String}()
 
 #-----# Environmental Variables:
@@ -57,7 +56,7 @@ function __init__()
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."
     end
     simulation_api_spec_main = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main"
-    openapi_spec[] = Config(YAML.load_file(download("$simulation_api_spec_main/openapi.yaml")))
+    openapi_spec[] = Dict(YAML.load_file(download("$simulation_api_spec_main/openapi.yaml")))
     simulation_schema[] = get_json("$simulation_api_spec_main/schemas/simulation.json")
     petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
 
@@ -100,9 +99,7 @@ function start!(; host=HOST[], port=PORT[], kw...)
     Oxygen.@post    "/kill/{id}"        job_kill
 
     # For /docs
-    _dict(x) = string(x)
-    _dict(x::Config) = Dict{String,Any}(string(k) => _dict(v) for (k,v) in x)
-    Oxygen.mergeschema(_dict(openapi_spec[]))
+    Oxygen.mergeschema(openapi_spec[])
 
     if Threads.nthreads() > 1  # true in production
         Oxygen.serveparallel(; host, port, async=true, kw...)
@@ -121,8 +118,7 @@ end
 #-----------------------------------------------------------------------------# utils
 json_header = ["Content-Type" => "application/json"]
 
-# Get Config object from JSON at `url`
-get_json(url::String, T=Config) = JSON3.read(HTTP.get(url, json_header).body, T)
+get_json(url::String, T::Type = JSON3.Object) = JSON3.read(HTTP.get(url, json_header).body, T)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
@@ -173,45 +169,43 @@ health(::HTTP.Request) = (
 
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
-    obj::Config = Config()                                  # untouched JSON from request sent by HMI
+    obj::JSON3.Object = JSON3.Object()                      # untouched JSON from request sent by HMI
     id::String = "sciml-$(UUIDs.uuid4())"                   # matches DataServiceModel :id
     operation::Symbol = :unknown                            # :simulate, :calibrate, etc.
-    model::Union{Nothing, Config} = nothing                 # ASKEM Model Representation (AMR)
-    models::Union{Nothing, Vector{Config}} = nothing        # Multiple models (in AMR)
+    model::Union{Nothing, JSON3.Object} = nothing           # ASKEM Model Representation (AMR)
+    models::Union{Nothing, Vector{JSON3.Object}} = nothing  # Multiple models (in AMR)
     timespan::Union{Nothing, NTuple{2, Float64}} = nothing  # (start, end)
     df::Union{Nothing, DataFrame} = nothing                 # dataset (calibrate only)
-    result::Any = nothing                               # store result of job
+    result::Any = nothing                                   # store result of job
 end
 
 function Base.show(io::IO, o::OperationRequest)
-    println(io, "OperationRequest")
-    println(io, "  obj with keys: $(keys(o.obj))")
-    println(io, "             id: $(o.id)")
-    println(io, "      operation: $(o.operation)")
+    println(io, "OperationRequest(obj keys: $(keys(o.obj)), id=$(repr(o.id))), operation=$(repr(o.operation))")
 end
 
 function OperationRequest(req::HTTP.Request, operation_name::String)
     o = OperationRequest()
+    @info "[$(o.id)] OperationRequest recieved to route /$operation_name: $(String(copy(req.body)))"
     o.obj = JSON3.read(req.body)
-    @info "OperationRequest recieved to route /$operation_name: $(String(req.body))"
     o.operation = Symbol(operation_name)
     for (k,v) in o.obj
+        if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset]
+            @warn "TDS Disabled - ignoring key `$k` from request with id: $(repr(o.id))"
+            continue
+        end
         k == :model_config_id ? (o.model = get_model(v)) :
         k == :model_config_ids ? (o.models = get_model.(v)) :
         k == :timespan ? (o.timespan = (Float64(v.start), Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
-        k == :local_model_file ? (o.model = JSON3.read(v, Config)) :  # For testing only
+        k == :local_model_file ? (o.model = JSON3.read(v)) :  # For testing only
         k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :      # For testing only
         nothing
     end
     return o
 end
 
-Config(o::OperationRequest) = Config(k => getfield(o,k) for k in fieldnames(OperationRequest))
-
 function solve(o::OperationRequest)
-    @info "solve: $o"
     callback = get_callback(o)
     T = operations2type[o.operation]
     op = T(o)
@@ -224,11 +218,11 @@ end
 # you can HTTP.get("$TDS_URL/simulation") and the JSON3.read(body, DataServiceModel)
 Base.@kwdef mutable struct DataServiceModel
     # Required
-    id::String = ""         # matches with our `id`
-    engine::String = "sciml"                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
-    type::String = ""          # :calibration, :calibration_simulation, :ensemble, :simulation
-    execution_payload::Config = Config()    # untouched JSON from request sent by HMI
-    workflow_id::String = "IGNORED"         # (ignore)
+    id::String = ""                                         # matches with our `id`
+    engine::String = "sciml"                                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
+    type::String = ""                                       # :calibration, :calibration_simulation, :ensemble, :simulation
+    execution_payload::JSON3.Object = JSON3.Object()        # untouched JSON from request sent by HMI
+    workflow_id::String = "IGNORED"                         # (ignore)
     # Optional
     name::Union{Nothing, String} = nothing                  # (ignore)
     description::Union{Nothing, String} = nothing           # (ignore)
@@ -275,8 +269,9 @@ function DataServiceModel(id::String)
     try
         res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
         return JSON3.read(res.body, DataServiceModel)
-    catch
-        return error("No simulation found in TDS with id=$id.")
+    catch ex
+        return error("Failed to retrieve simulation in TDS with id=$(repr(id)).")
+        rethrow(ex)
     end
 end
 
@@ -284,12 +279,12 @@ function get_model(id::String)
     @info "get_model($(repr(id)))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `get_model` with argument $id"
-        return Config()  # TODO: mock TDS
+        return JSON3.Object()  # TODO: mock TDS
     end
     get_json("$(TDS_URL[])/model_configurations/$id").configuration
 end
 
-function get_dataset(obj::Config)
+function get_dataset(obj::JSON3.Object)
     @info "get_dataset with obj = $(JSON3.write(obj))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `get_dataset` with argument $obj"
@@ -329,7 +324,7 @@ end
 # update the DataServiceModel in TDS: PUT /simulations/{id}
 # kw args and their types much match field::fieldtype in DataServiceModel
 function update(o::OperationRequest; kw...)
-    @info "updating model $(o.id) in TDS: $(NamedTuple(kw))"
+    @info "updating model $(o.id) in TDS: $(JSON3.write(kw))"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `update` OperationRequest with id=$(o.id), $kw"
         return kw
@@ -399,6 +394,7 @@ function operation(request::HTTP.Request, operation_name::String)
                 complete(o)  # 6, 7
             catch ex
                 update(o; status = "error", reason = string(ex))
+                rethrow(ex)
             end
         end
     )
