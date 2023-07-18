@@ -128,8 +128,8 @@ end
 
 function solve(op::Simulate; kw...)
     # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
-    prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
-    sol = solve(prob; progress = true, progress_steps = 1, kw...)
+    prob = ODEProblem(op.sys, [], op.timespan)
+    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, kw...)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
@@ -198,11 +198,11 @@ function solve(o::Calibrate; callback)
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
         else
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = global_datafit(prob, init_params, o.data)
+            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
         end
 
-        newprob = remake(prob, p=fit)
-        sol = solve(newprob)
+        newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
+        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
