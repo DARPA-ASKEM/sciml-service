@@ -53,7 +53,7 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     end
 
     sys = structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(amr.name)))
-    @info sys
+    @info "amr_get(amr, ODESystem) --> $sys"
 
     sys
 end
