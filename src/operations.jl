@@ -67,7 +67,7 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
     map(amr.semantics.ode.parameters) do p
         if haskey(p, :distribution)
             # Assumption: only fit parameters which have a distribution / bounds
-            if p.distribution.type !== "StandardUniform1"
+            if p.distribution.type != "StandardUniform1" || p.distribution.type != "Uniform1"
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
             
