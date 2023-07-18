@@ -70,10 +70,10 @@ end
 
 # data
 function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
-
+    @info "parse dataset into calibrate format"
     statelist = states(sys)
     statenames = string.(statelist)
-    statenames = map(statenames) do n; n[1:end-3]; end # there's a better way to do this
+    statenames = [replace(nm, "(t)" => "") for nm in statenames]
     tvals = df[:,"timestamp"]
 
     map(statelist, statenames) do s,n
