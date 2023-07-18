@@ -202,7 +202,7 @@ function solve(o::Calibrate; callback)
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
-        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob)
+        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
