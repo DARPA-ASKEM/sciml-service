@@ -11,7 +11,7 @@ See example payloads in the `./examples` directory or at [https://github.com/DAR
 ```julia
 using Revise  # auto-update the server with your changes
 using SimulationService
-SimulationService.ENABLE_TDS = false  # opt out of Terrarium Data Service
+SimulationService.ENABLE_TDS[] = false  # opt out of Terrarium Data Service
 
 start!()  # run server
 
