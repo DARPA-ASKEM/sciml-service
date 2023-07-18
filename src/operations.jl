@@ -98,9 +98,11 @@ function (o::IntermediateResults)(integrator)
         publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=norm(u - uprev), id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
+    EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
-get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id))
+get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id), 
+                                                      save_positions = (false,false))
 
 
 #----------------------------------------------------------------------# dataframe_with_observables
