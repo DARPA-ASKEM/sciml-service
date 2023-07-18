@@ -341,9 +341,10 @@ function complete(o::OperationRequest)
 
     if o.result isa DataFrame
         # DataFrame uploaded as CSV file
-        for nm in names(o.result)
-            rename!(o.result, nm => replace(nm, "(t)" => ""))
-        end
+        # TODO: rename! still required??
+        # for nm in names(o.result)
+        #     rename!(o.result, nm => replace(nm, "(t)" => ""))
+        # end
         io = IOBuffer()
         CSV.write(io, o.result)
         body = String(take!(io))
