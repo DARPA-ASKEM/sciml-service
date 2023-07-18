@@ -1,12 +1,13 @@
 
 #-----------------------------------------------------------------------------# amr_get
 # Things that extract info from AMR JSON
-# joshday: should all of these be moved into OperationRequest?
+# The AMR is the `model` field of an OperationRequest
 
 # Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(obj::Config, ::Type{ODESystem})
-    model = obj.model
-    ode = obj.semantics.ode
+function amr_get(amr::JSON3.Object, ::Type{ODESystem})
+    @info "amr_get ODESystem"
+    model = amr.model
+    ode = amr.semantics.ode
 
     t = only(@variables t)
     D = Differential(t)
@@ -51,11 +52,12 @@ function amr_get(obj::Config, ::Type{ODESystem})
         push!(eqs, ofunc ~ expr)
     end
 
-    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(obj.name)))
+    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(amr.name)))
 end
 
 # priors
-function amr_get(amr::Config, sys::ODESystem, ::Val{:priors})
+function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
+    @info "amr_get priors"
     paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
     namelist = nameof.(paramlist)
 
