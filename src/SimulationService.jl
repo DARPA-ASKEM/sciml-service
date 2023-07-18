@@ -278,6 +278,7 @@ publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 # Each function in this section assumes ENABLE_TDS=true
 
 function DataServiceModel(id::String)
+    @assert ENABLE_TDS[]
     @info "DataServiceModel($(repr(id)))"
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
@@ -286,11 +287,13 @@ function DataServiceModel(id::String)
 end
 
 function get_model(id::String)
+    @assert ENABLE_TDS[]
     @info "get_model($(repr(id)))"
     get_json("$(TDS_URL[])/model_configurations/$id").configuration
 end
 
 function get_dataset(obj::JSON3.Object)
+    @assert ENABLE_TDS[]
     @info "get_dataset with obj = $(JSON3.write(obj))"
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
