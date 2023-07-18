@@ -35,7 +35,8 @@ datasets = get_json("$(TDS_URL[])/datasets")
 data_obj = JSON3.read(JSON3.write((;
     id = datasets[1].id,
     name = datasets[1].name,
-    filename = datasets[1].file_names[1]
+    filename = datasets[1].file_names[1],
+    mappings = (; Ailing = "A")
 )))
 
 get_dataset(data_obj)

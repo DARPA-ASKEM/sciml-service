@@ -299,7 +299,7 @@ function get_dataset(obj::JSON3.Object)
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
     return haskey(obj, :mappings) ?
-        rename!(df, Dict{String,String}(obj.mappings)) :
+        rename!(df, Dict(string(k) => string(v) for (k,v) in obj.mappings)) :
         df
 end
 
