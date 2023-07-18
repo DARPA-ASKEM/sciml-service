@@ -1,0 +1,15 @@
+{
+  "modelConfigId": "55ca595f-940d-458c-9c73-7c315a10b559",
+  "dataset": {
+      "id": "a3365ea8-a199-49e1-b634-a1b3f8635731",
+      "filename": "sirFixed.csv",
+      "mappings": {
+          "t": "timestep",
+          "s": "S",
+          "i": "I",
+          "r": "R"
+      }
+  },
+  "extra": {},
+  "engine": "sciml"
+}
