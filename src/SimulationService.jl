@@ -122,6 +122,18 @@ get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
+# Dump all the info we can get about a simulation `id`
+function debug_data(id::String)
+    @assert ENABLE_TDS[]
+    data_service_model = DataServiceModel(id::String)
+    request_json = data_service_model.execution_payload
+    amr = get_model(data_service_model.execution_payload.model_config_id)
+    route = String(Dict(v => k for (k,v) in operation_to_dsm_type)[data_service_model.type])
+    operation_request = OperationRequest(HTTP.Request("POST", "", [], JSON3.write(request_json)), route)
+    job_status = get_job_status(get_job(id))
+    return (; request_json, amr, data_service_model, operation_request, job_status)
+end
+
 #-----------------------------------------------------------------------------# job endpoints
 get_job(id::String) = JobSchedulers.job_query(jobhash(id))
 
@@ -298,9 +310,11 @@ function get_dataset(obj::JSON3.Object)
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
-    return haskey(obj, :mappings) ?
-        rename!(df, Dict(string(k) => string(v) for (k,v) in obj.mappings)) :
-        df
+    for (k,v) in get(obj, :mappings, Dict())
+        @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
+        rename!(df, k => v)
+    end
+    return df
 end
 
 
