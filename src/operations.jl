@@ -130,6 +130,7 @@ function solve(op::Simulate; kw...)
     # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan, saveat=1)
     sol = solve(prob; progress = true, progress_steps = 1, kw...)
+    @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
 
@@ -152,7 +153,7 @@ function Calibrate(o::OperationRequest)
 
     num_chains = 4
     num_iterations = 100
-    calibrate_method = "bayesian"
+    calibrate_method = "global"
     ode_method = nothing
 
     if :extra in keys(o.obj)
