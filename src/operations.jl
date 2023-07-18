@@ -52,7 +52,10 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
         push!(eqs, ofunc ~ expr)
     end
 
-    structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(amr.name)))
+    sys = structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(amr.name)))
+    @info sys
+
+    sys
 end
 
 # priors
@@ -62,9 +65,15 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
     namelist = nameof.(paramlist)
 
     map(amr.semantics.ode.parameters) do p
-        @assert p.distribution.type === "StandardUniform1"
-        dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
-        paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+        if haskey(p, :distribution)
+            # Assumption: only fit parameters which have a distribution / bounds
+            if p.distribution.type !== "StandardUniform1"
+                @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
+            end
+            
+            dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+            paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+        end
     end
 end
 
