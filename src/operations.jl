@@ -65,10 +65,10 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
     paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
     namelist = nameof.(paramlist)
 
-    map(amr.semantics.ode.parameters) do p
+    priors = map(amr.semantics.ode.parameters) do p
         if haskey(p, :distribution)
             # Assumption: only fit parameters which have a distribution / bounds
-            if p.distribution.type != "StandardUniform1" || p.distribution.type != "Uniform1"
+            if p.distribution.type != "StandardUniform1" && p.distribution.type != "Uniform1"
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
 
@@ -76,6 +76,7 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
             paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
         end
     end
+    priors = filter(!isnothing, priors)
 end
 
 # data
@@ -151,7 +152,7 @@ end
 struct Calibrate <: Operation
     sys::ODESystem
     timespan::Tuple{Float64, Float64}
-    priors::Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
+    priors::Vector
     data::Any
     num_chains::Int
     num_iterations::Int
@@ -210,6 +211,7 @@ function solve(o::Calibrate; callback)
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
         else
+            
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
             fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
         end

@@ -183,6 +183,26 @@ end
 
         en = Ensemble{Simulate}(o)
     end
+
+    @testset "Real Calibrate Payload" begin
+        file = here("examples", "sir_calibrate", "sir.json")
+        amr = JSON3.read(read(file))
+        sys = SimulationService.amr_get(amr, ODESystem)
+        priors = SimulationService.amr_get(amr, sys, Val(:priors))
+        df = CSV.read(here("examples", "sir_calibrate", "sirNoMappingJulia.csv"), DataFrame)
+        data = SimulationService.amr_get(df, sys, Val(:data))
+        num_chains = 4
+        num_iterations = 100
+        calibrate_method = "global"
+        ode_method = nothing
+
+        o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
+        dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+
+        statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+        @test names(dfsim) == vcat("timestamp",string.(statenames))
+        @test names(dfparam) == ["beta", "gamma"]
+    end
 end
 
 
