@@ -175,13 +175,19 @@ end
 
         body = JSON3.write(obj)
 
+        # create ensemble-simulte
         o = OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = [amr for _ in 1:4]
         o.timespan = (0, 30)
-
         en = Ensemble{Simulate}(o)
+
+        # create ensemble-calibrate
+        # o = OperationRequest()
+        # o.route = "ensemble-calibrate"
+        # json = JSON3.read(here("examples", "sir_calibrate", "sir_calibrate_request"), Dict)
+        # delete!(json, "modelConfigId")
     end
 
     @testset "Real Calibrate Payload" begin

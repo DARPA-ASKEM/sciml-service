@@ -72,7 +72,12 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
 
-            dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+            # TODO: figure out why parameters are (sometimes?) String
+            (; minimum, maximum) = p.distribution.parameters
+            minimum = minimum isa String ? parse(minimum, Float64) : minimum
+            maximum = maximum isa String ? parse(maximum, Float64) : maximum
+
+            dist = EasyModelAnalysis.Distributions.Uniform(minimum, maximum)
             paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
         end
     end
@@ -211,7 +216,7 @@ function solve(o::Calibrate; callback)
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
         else
-            
+
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
             fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
         end
@@ -249,6 +254,7 @@ function Ensemble{T}(o::OperationRequest) where {T}
         temp.df = o.df
         temp.timespan = o.timespan
         temp.model = model
+        temp.obj = o.obj
         T(temp)
     end
     Ensemble{T}(model_ids, operations, weights, sol_mappings)
