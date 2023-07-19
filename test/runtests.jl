@@ -103,7 +103,7 @@ end
     @test m.engine == "sciml"
     @test m.id == ""
 
-    o = OperationRequest(operation = :simulate)
+    o = OperationRequest(route = "simulate")
     m2 = DataServiceModel(o)
 
     # OperationRequest constructor with dummy HTTP.Request
