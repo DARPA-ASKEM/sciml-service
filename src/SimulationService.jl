@@ -195,11 +195,11 @@ end
 
 function OperationRequest(req::HTTP.Request, route::String)
     o = OperationRequest()
-    @info "[$(o.id)] OperationRequest recieved to route /$operation_name: $(String(copy(req.body)))"
+    @info "[$(o.id)] OperationRequest recieved to route /$route: $(String(copy(req.body)))"
     o.obj = JSON3.read(req.body)
     o.route = route
     for (k,v) in o.obj
-        if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset]
+        if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset, :model_configs]
             @warn "TDS Disabled - ignoring key `$k` from request with id: $(repr(o.id))"
             continue
         end
@@ -208,6 +208,9 @@ function OperationRequest(req::HTTP.Request, route::String)
         k == :timespan ? (o.timespan = (Float64(v.start), Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
+
+        # For ensemble, we get objects with {id, solution_mappings, weight}
+        k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
 
         # For testing only:
         k == :local_model_configuration_file ? (o.model = JSON.read(v).configuration) :
@@ -222,7 +225,7 @@ end
 
 function solve(o::OperationRequest)
     callback = get_callback(o)
-    T = operations2type[o.route]
+    T = route2operation_type[o.route]
     op = T(o)
     o.result = solve(op; callback)
 end
@@ -338,6 +341,7 @@ function get_dataset(obj::JSON3.Object)
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
         rename!(df, k => v)
     end
+    "timestep" in names(df) && rename!(df, "timestep" => "timestep")  # hack to get df in our "schema"
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end
@@ -406,7 +410,7 @@ function complete(o::OperationRequest)
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
-    update(o; status = "complete", completed_time = timestamp(), result_files = [s3_url])
+    update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
 end
 
 
@@ -425,9 +429,9 @@ last_job = Ref{JobSchedulers.Job}()
 # 5) Job finishes: We get url from TDS where we can store results: GET /simulations/$sim_id/upload-url?filename=result.csv
 # 6) We upload results to S3: PUT $url
 # 7) We update simulation in TDS(status="complete", complete_time=<datetime>): PUT /simulations/$id
-function operation(request::HTTP.Request, operation_name::String)
-    @info "Creating OperationRequest from POST to route $operation_name"
-    o = OperationRequest(request, operation_name)  # 1, 3
+function operation(request::HTTP.Request, route::String)
+    @info "Creating OperationRequest from POST to route $route"
+    o = OperationRequest(request, route)  # 1, 3
     create(o)  # 2
     job = JobSchedulers.Job(
         @task begin

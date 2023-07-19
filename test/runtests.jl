@@ -159,6 +159,30 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
+    @testset "Ensemble" begin
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
+        amr = SimulationService.get_json(json_url)
+
+        obj = (
+            model_configs = map(1:4) do i
+                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            end,
+            models = [amr for _ in 1:4],
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
+
+        body = JSON3.write(obj)
+
+        o = OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = [amr for _ in 1:4]
+        o.timespan = (0, 30)
+
+        Ensemble{Simulate}(o)
+    end
 end
 
 
