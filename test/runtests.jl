@@ -181,7 +181,7 @@ end
         o.models = [amr for _ in 1:4]
         o.timespan = (0, 30)
 
-        Ensemble{Simulate}(o)
+        en = Ensemble{Simulate}(o)
     end
 end
 

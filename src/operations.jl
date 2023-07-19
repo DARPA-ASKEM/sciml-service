@@ -253,8 +253,14 @@ function Ensemble{T}(o::OperationRequest) where {T}
 end
 
 function solve(o::Ensemble{Simulate}; callback)
-    sols = solve.(o.operations)
+    systems = [sim.sys for sim in o.operations]
+    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
+    enprob = EMA.EnsembleProblem(probs)
+    sol = solve(enprob; saveat = 1);
+    weights = [0.2, 0.5, 0.3]
+    data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in error("What goes here?")]
 end
+
 
 function solve(o::Ensemble{Calibrate}; callback)
     EMA = EasyModelAnalysis
