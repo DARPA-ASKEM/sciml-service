@@ -385,7 +385,7 @@ function complete(o::OperationRequest)
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
-    update(o; status = "complete", completed_time = timestamp(), result_files = [s3_url])
+    update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
 end
 
 
