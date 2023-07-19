@@ -71,7 +71,21 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
 
-            dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+            minval = if p.distribution.parameters.minimum isa Number 
+                p.distribution.parameters.minimum
+            elseif p.distribution.parameters.minimum isa AbstractString
+                @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
+                parse(Float64, p.distribution.parameters.minimum)
+            end
+
+            maxval = if p.distribution.parameters.maximum isa Number 
+                p.distribution.parameters.maximum
+            elseif p.distribution.parameters.maximum isa AbstractString
+                @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
+                parse(Float64, p.distribution.parameters.maximum)
+            end
+
+            dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
             paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
         end
     end
