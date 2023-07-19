@@ -103,7 +103,7 @@ end
     @test m.engine == "sciml"
     @test m.id == ""
 
-    o = OperationRequest(operation = :simulate)
+    o = OperationRequest(route = "simulate")
     m2 = DataServiceModel(o)
 
     # OperationRequest constructor with dummy HTTP.Request
@@ -159,6 +159,36 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
+    @testset "Ensemble" begin
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
+        amr = SimulationService.get_json(json_url)
+
+        obj = (
+            model_configs = map(1:4) do i
+                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            end,
+            models = [amr for _ in 1:4],
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
+
+        body = JSON3.write(obj)
+
+        # create ensemble-simulte
+        o = OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = [amr for _ in 1:4]
+        o.timespan = (0, 30)
+        en = Ensemble{Simulate}(o)
+
+        # create ensemble-calibrate
+        # o = OperationRequest()
+        # o.route = "ensemble-calibrate"
+        # json = JSON3.read(here("examples", "sir_calibrate", "sir_calibrate_request"), Dict)
+        # delete!(json, "modelConfigId")
+    end
 
     @testset "Real Calibrate Payload" begin
         file = here("examples", "sir_calibrate", "sir.json")
@@ -171,10 +201,10 @@ end
         num_iterations = 100
         calibrate_method = "global"
         ode_method = nothing
-        
+
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
         dfsim, dfparam = SimulationService.solve(o; callback = nothing)
-        
+
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == ["beta", "gamma"]

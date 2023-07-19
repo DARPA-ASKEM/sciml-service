@@ -3,6 +3,7 @@
 # Things that extract info from AMR JSON
 # The AMR is the `model` field of an OperationRequest
 
+
 # Get `ModelingToolkit.ODESystem` from AMR
 function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     @info "amr_get ODESystem"
@@ -71,7 +72,21 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
 
-            dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
+            minval = if p.distribution.parameters.minimum isa Number
+                p.distribution.parameters.minimum
+            elseif p.distribution.parameters.minimum isa AbstractString
+                @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
+                parse(Float64, p.distribution.parameters.minimum)
+            end
+
+            maxval = if p.distribution.parameters.maximum isa Number
+                p.distribution.parameters.maximum
+            elseif p.distribution.parameters.maximum isa AbstractString
+                @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
+                parse(Float64, p.distribution.parameters.maximum)
+            end
+
+            dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
             paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
         end
     end
@@ -84,7 +99,8 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
     statelist = states(sys)
     statenames = string.(statelist)
     statenames = [replace(nm, "(t)" => "") for nm in statenames]
-    tvals = df[:,"timestamp"]
+
+    tvals = df[:, "timestamp"]
 
     map(statelist, statenames) do s,n
         s => (tvals,df[:,n])
@@ -111,7 +127,7 @@ function (o::IntermediateResults)(integrator)
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
-get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id), 
+get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
                                                       save_positions = (false,false))
 
 
@@ -209,7 +225,7 @@ function solve(o::Calibrate; callback)
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
         else
-            
+
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
             fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
         end
@@ -229,37 +245,104 @@ function solve(o::Calibrate; callback)
 end
 
 #-----------------------------------------------------------------------------# Ensemble
-struct Ensemble <: Operation
-    sys::Vector{ODESystem}
-    priors::Vector{Pair{Num,Any}} # Any = Distribution
-    train_datas::Any
-    ensem_datas::Any
-    t_forecast::Vector{Float64}
-    quantiles::Vector{Float64}
+# joshday: What is different between simulate and calibrate for ensemble?
+
+struct Ensemble{T<:Operation} <: Operation
+    model_ids::Vector{String}
+    operations::Vector{T}
+    weights::Vector{Float64}
+    sol_mappings::Vector{JSON3.Object}
 end
 
-function Ensemble(o::OperationRequest)
-    sys = amr_get.(o.models, ODESystem)
+function Ensemble{T}(o::OperationRequest) where {T}
+    model_ids = map(x -> x.id, o.obj.model_configs)
+    weights = map(x -> x.weight, o.obj.model_configs)
+    sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
+    operations = map(o.models) do model
+        temp = OperationRequest()
+        temp.df = o.df
+        temp.timespan = o.timespan
+        temp.model = model
+        temp.obj = o.obj
+        T(temp)
+    end
+    Ensemble{T}(model_ids, operations, weights, sol_mappings)
 end
 
-function solve(o::Ensemble; callback)
-    probs = [ODEProblem(s, [], o.timespan) for s in sys]
-    ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
-    datas = [data_train,data_train,data_train]
-    enprobs = bayesian_ensemble(probs, ps, datas)
-    ensem_weights = ensemble_weights(sol, data_ensem)
+function solve(o::Ensemble{Simulate}; callback)
+    systems = [sim.sys for sim in o.operations]
+    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
+    enprob = EMA.EnsembleProblem(probs)
+    sol = solve(enprob; saveat = 1);
+    weights = [0.2, 0.5, 0.3]
+    data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in error("What goes here?")]
+end
 
-    forecast_probs = [remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
-    fit_enprob = EnsembleProblem(forecast_probs)
-    sol = solve(fit_enprob; saveat = o.t_forecast);
 
-    soldata = DataFrame([sol.t;Matrix(sol[names])'])
+function solve(o::Ensemble{Calibrate}; callback)
+    EMA = EasyModelAnalysis
+    probs = [ODEProblem(cal.sys, [], o.timespan) for cal in o.operations]
+    error("TODO")
+
+
+    # probs = [ODEProblem(s, [], o.timespan) for s in sys]
+    # ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
+    # datas = [data_train,data_train,data_train]
+    # enprobs = EMA.bayesian_ensemble(probs, ps, datas)
+    # ensem_weights = EMA.ensemble_weights(sol, data_ensem)
+
+    # forecast_probs = [EMA.remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
+    # fit_enprob = EMA.EnsembleProblem(forecast_probs)
+    # sol = solve(fit_enprob; saveat = o.t_forecast);
+
+    # soldata = DataFrame([sol.t; Matrix(sol[names])'])
 
     # Requires https://github.com/SciML/SciMLBase.jl/pull/467
     # weighted_ensem = WeightedEnsembleSolution(sol, ensem_weights; quantiles = o.quantiles)
     # df = DataFrame(weighted_ensem)
     # df, soldata
 end
+
+
+
+# struct Ensemble <: Operation
+#     sys::Vector{ODESystem}
+#     priors::Vector{Pair{Num,Any}} # Any = Distribution
+#     train_datas::Any
+#     ensem_datas::Any
+#     t_forecast::Vector{Float64}
+#     quantiles::Vector{Float64}
+# end
+
+# function Ensemble(o::OperationRequest)
+#     sys = amr_get.(o.models, ODESystem)
+# end
+
+# function solve(o::Ensemble; callback)
+#     EMA = EasyModelAnalysis
+#     probs = [ODEProblem(s, [], o.timespan) for s in sys]
+#     ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
+#     datas = [data_train,data_train,data_train]
+#     enprobs = EMA.bayesian_ensemble(probs, ps, datas)
+#     ensem_weights = EMA.ensemble_weights(sol, data_ensem)
+
+#     forecast_probs = [EMA.remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
+#     fit_enprob = EMA.EnsembleProblem(forecast_probs)
+#     sol = solve(fit_enprob; saveat = o.t_forecast);
+
+#     soldata = DataFrame([sol.t; Matrix(sol[names])'])
+
+#     # Requires https://github.com/SciML/SciMLBase.jl/pull/467
+#     # weighted_ensem = WeightedEnsembleSolution(sol, ensem_weights; quantiles = o.quantiles)
+#     # df = DataFrame(weighted_ensem)
+#     # df, soldata
+# end
+
 #-----------------------------------------------------------------------------# All operations
 # :simulate => Simulate, etc.
-const operations2type = Dict(Symbol(lowercase(string(T.name.name))) => T for T in subtypes(Operation))
+const route2operation_type = Dict(
+    "simulate" => Simulate,
+    "calibrate" => Calibrate,
+    "ensemble-simulate" => Ensemble{Simulate},
+    "ensemble-calibrate" => Ensemble{Calibrate}
+)
