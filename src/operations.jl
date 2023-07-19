@@ -3,6 +3,16 @@
 # Things that extract info from AMR JSON
 # The AMR is the `model` field of an OperationRequest
 
+# There's no real data schema, so let's do our best to guess
+function get_timestamp_field(df::DataFrame)
+    fields = names(df)
+    possibilities = ["timestamp", "timestep"]
+    for p in possibilities
+        p in fields && return p
+    end
+    error("No timestamp field found in dataframe.  Expected one of: $possibilities.")
+end
+
 # Get `ModelingToolkit.ODESystem` from AMR
 function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     @info "amr_get ODESystem"
@@ -70,7 +80,7 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
             if p.distribution.type != "StandardUniform1" || p.distribution.type != "Uniform1"
                 @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
             end
-            
+
             dist = EasyModelAnalysis.Distributions.Uniform(p.distribution.parameters.minimum, p.distribution.parameters.maximum)
             paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
         end
@@ -83,7 +93,9 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
     statelist = states(sys)
     statenames = string.(statelist)
     statenames = [replace(nm, "(t)" => "") for nm in statenames]
-    tvals = df[:,"timestamp"]
+
+    timestamp_field = get_timestamp_field(df)
+    tvals = df[:, timestamp_field]
 
     map(statelist, statenames) do s,n
         s => (tvals,df[:,n])
@@ -110,7 +122,7 @@ function (o::IntermediateResults)(integrator)
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
-get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id), 
+get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
                                                       save_positions = (false,false))
 
 
