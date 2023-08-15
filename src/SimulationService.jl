@@ -341,7 +341,7 @@ function get_dataset(obj::JSON3.Object)
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
         rename!(df, k => v)
     end
-    "timestep" in names(df) && rename!(df, "timestep" => "timestep")  # hack to get df in our "schema"
+    "timestep" in names(df) && rename!(df, "timestep" => "timestamp")  # hack to get df in our "schema"
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end
