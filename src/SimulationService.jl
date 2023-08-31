@@ -15,7 +15,7 @@ import HTTP
 import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
-import JSONSchema 
+import JSONSchema
 import LinearAlgebra: norm
 import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
@@ -80,7 +80,7 @@ function __init__()
             (; MECHANISM = "AMQPLAIN", LOGIN=RABBITMQ_LOGIN, PASSWORD=RABBITMQ_PASSWORD)
         )
         conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT, auth_params)
-        @info typeof(AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true))
+
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
     end
 
@@ -223,7 +223,7 @@ function OperationRequest(req::HTTP.Request, route::String)
     # Checks if the JSON model is valid against the petrinet schema
     # If not valid, produces a warning saying why
     if !isnothing(o.model)
-        valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],o.model) 
+        valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],o.model)
         if !isnothing(valid_against_schema)
             @warn "Object not valid against schema: $(valid_against_schema)"
         end
@@ -231,7 +231,7 @@ function OperationRequest(req::HTTP.Request, route::String)
 
     if !isnothing(o.models)
         for model in o.models
-            valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],model) 
+            valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],model)
             if !isnothing(valid_against_schema)
                 @warn "Object not valid against schema: $(valid_against_schema)"
             end
