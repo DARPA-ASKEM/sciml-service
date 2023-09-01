@@ -154,10 +154,10 @@ function Simulate(o::OperationRequest)
     Simulate(sys, o.timespan)
 end
 
-function solve(op::Simulate; kw...)
+function solve(op::Simulate; callback)
     # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, kw...)
+    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end

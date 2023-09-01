@@ -82,6 +82,7 @@ function __init__()
         conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT, auth_params)
 
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
+        AMQPClient.queue_declare(rabbitmq_channel[], "sciml-queue")
     end
 
     v = Pkg.Types.read_project("Project.toml").version
