@@ -40,6 +40,7 @@ const simulation_schema = Ref{JSON3.Object}()
 const petrinet_schema = Ref{JSON3.Object}()
 const petrinet_JSONSchema_object = Ref{JSONSchema.Schema}()
 const server_url = Ref{String}()
+const mock_tds = Ref{Dict{String, Dict{String, JSON3.Object}}}()  # e.g. "model" => "model_id" => model
 
 #-----# Environmental Variables:
 # Server configuration
@@ -64,6 +65,7 @@ function __init__()
     simulation_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/schemas/simulation.json")
     petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
     petrinet_JSONSchema_object[] = JSONSchema.Schema(petrinet_schema[])
+
     HOST[] = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
     PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
     ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
@@ -132,6 +134,19 @@ get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
+# Run some code with a running server
+function with_server(f::Function; wait=1)
+    try
+        start!()
+        sleep(wait)
+        url = SimulationService.server_url[]
+        f(url)
+    catch ex
+        rethrow(ex)
+    finally
+        stop!()
+    end
+end
 
 #-----------------------------------------------------------------------------# job endpoints
 get_job(id::String) = JobSchedulers.job_query(jobhash(id))

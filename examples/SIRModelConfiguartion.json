@@ -1,9 +1,11 @@
 {
   "id": "55ca595f-940d-458c-9c73-7c315a10b559",
-  "name": "Default config",
-  "description": "Default config",
-  "timestamp": "2023-07-13T20:18:12",
-  "model_id": "0984a5a9-6438-4041-aa11-2f9ea8fc9d4a",
+  "header": {
+    "name": "Default config",
+    "description": "Default config",
+    "timestamp": "2023-07-13T20:18:12",
+    "model_id": "0984a5a9-6438-4041-aa11-2f9ea8fc9d4a"
+  },
   "configuration": {
     "id": "0984a5a9-6438-4041-aa11-2f9ea8fc9d4a",
     "name": "SIRs",
