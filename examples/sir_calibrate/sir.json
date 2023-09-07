@@ -1,9 +1,11 @@
 {
-  "id": "5bcf7464-5dce-4af5-b8b3-747328f1525e",
-  "timestamp": "2023-07-10 18:41:39",
-  "name": "SIRs",
-  "description": "SIR model",
-  "username": null,
+    "id": "5bcf7464-5dce-4af5-b8b3-747328f1525e",
+    "header": {
+    "timestamp": "2023-07-10 18:41:39",
+    "name": "SIRs",
+    "description": "SIR model",
+    "username": null
+  },
   "model": {
     "states": [
       {

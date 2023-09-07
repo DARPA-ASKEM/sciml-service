@@ -1,9 +1,11 @@
 {
-    "name": "Giordano2020 - SIDARTHE model of COVID-19 spread in Italy",
-    "schema": "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/petrinet_v0.5/petrinet/petrinet_schema.json",
-    "schema_name": "petrinet",
-    "description": "Giordano2020 - SIDARTHE model of COVID-19 spread in Italy",
-    "model_version": "0.1",
+    "header": {
+      "name": "Giordano2020 - SIDARTHE model of COVID-19 spread in Italy",
+      "schema": "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/petrinet_v0.5/petrinet/petrinet_schema.json",
+      "schema_name": "petrinet",
+      "description": "Giordano2020 - SIDARTHE model of COVID-19 spread in Italy",
+      "model_version": "0.1"
+    },
     "properties": {},
     "model": {
      "states": [
