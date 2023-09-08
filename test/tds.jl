@@ -5,7 +5,7 @@
 
 using SimulationService
 using SimulationService: get_model, get_dataset, create, update, complete, get_json, solve,
-    DataServiceModel, OperationRequest, TDS_URL
+    SimObject, OperationRequest, TDS_URL
 
 using HTTP, JSON3, DataFrames, Dates, Test
 
@@ -65,8 +65,8 @@ res = create(o)  # Create TDS representation of model
 sleep(2)
 @test HTTP.get("$(TDS_URL[])/simulations/$id").status == 200
 
-#-----------------------------------------------------------------------------# DataServiceModel ✓
-m = DataServiceModel(id)
+#-----------------------------------------------------------------------------# SimObject ✓
+m = SimObject(id)
 @test m.id == id
 
 #-----------------------------------------------------------------------------# update ✓

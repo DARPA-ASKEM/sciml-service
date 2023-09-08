@@ -10,7 +10,7 @@ using Oxygen
 using SciMLBase: solve
 using Test
 using SimulationService
-using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble, get_json
+using SimulationService: SimObject, OperationRequest, Simulate, Calibrate, Ensemble, get_json
 
 SimulationService.ENABLE_TDS[] = false
 SimulationService.PORT[] = 8080 # avoid 8000 in case another server is running
@@ -54,9 +54,9 @@ end
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
 
     priors = SimulationService.amr_get(amr, sys, Val(:priors))
-    @test priors isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
+    @test priors isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Distributions.Uniform{Float64}}}
     @test string.(first.(priors)) == string.(parameters(sys))
-    @test last.(priors) isa Vector{Uniform{Float64}}
+    @test last.(priors) isa Vector{Distributions.Uniform{Float64}}
 
     df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
@@ -65,9 +65,9 @@ end
     @test all(all.(map(first.(last.(data))) do x; x .== 0:89; end))
 end
 
-#-----------------------------------------------------------# DataServiceModel and OperationRequest
-@testset "DataServiceModel and OperationRequest" begin
-    @testset "DataServiceModel" begin
+#-----------------------------------------------------------# SimObject and OperationRequest
+@testset "SimObject and OperationRequest" begin
+    @testset "SimObject" begin
         example = """{
             "id": "sciml-dfca06dd-b044-436f-a744-0d0a30cc130f",
             "name": null,
@@ -94,22 +94,22 @@ end
             "project_id": 0,
             "result_files": []
         }"""
-        @test JSON3.read(example, DataServiceModel) isa DataServiceModel
+        @test JSON3.read(example, SimObject) isa SimObject
 
     end
 
 
-    m = DataServiceModel()
+    m = SimObject()
     @test m.engine == "sciml"
     @test m.id == ""
 
     o = OperationRequest(route = "simulate")
-    m2 = DataServiceModel(o)
+    m2 = SimObject(o)
 
     # OperationRequest constructor with dummy HTTP.Request
     req = HTTP.Request("POST", "", [], simulate_payloads[1])
     o = OperationRequest(req, "simulate")
-    @test DataServiceModel(o).id == o.id
+    @test SimObject(o).id == o.id
 
     # Test that `create` returns JSON with the required keys
     create_obj = JSON3.read(SimulationService.create(o))

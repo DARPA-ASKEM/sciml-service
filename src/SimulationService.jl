@@ -6,19 +6,19 @@ import PrecompileTools: @recompile_invalidations, @compile_workload
 import AMQPClient
 import CSV
 import DataFrames: DataFrame, names, rename!
-import Dates: Dates, DateTime, now, UTC
+import Dates
 import DifferentialEquations
+import Distributions
 import Downloads: download
-import Distributions: Uniform
-import EasyModelAnalysis
+import Distributions
+import EasyModelAnalysis as EMA
 import HTTP
-import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
 import JSONSchema
-import LinearAlgebra: norm
+import LinearAlgebra
 import MathML
-import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
+import ModelingToolkit as MTK
 import OpenAPI
 import Oxygen
 import Pkg
@@ -26,6 +26,7 @@ import SciMLBase: SciMLBase, DiscreteCallback, solve
 import StructTypes
 import SwaggerMarkdown
 import SymbolicUtils
+import Turing
 import UUIDs
 import YAML
 import Statistics
@@ -132,7 +133,7 @@ json_header = ["Content-Type" => "application/json"]
 
 get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
 
-timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
+timestamp() = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
 
 # Run some code with a running server
 function with_server(f::Function; wait=1)
@@ -197,7 +198,7 @@ health(::HTTP.Request) = (
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
     obj::JSON3.Object = JSON3.Object()                      # untouched JSON from request sent by HMI
-    id::String = "sciml-$(UUIDs.uuid4())"                   # matches DataServiceModel :id
+    id::String = "sciml-$(UUIDs.uuid4())"                   # matches SimObject :id
     route::String = "unknown"                               # :simulate, :calibrate, etc.
     model::Union{Nothing, JSON3.Object} = nothing           # ASKEM Model Representation (AMR)
     models::Union{Nothing, Vector{JSON3.Object}} = nothing  # Multiple models (in AMR)
@@ -266,11 +267,11 @@ function solve(o::OperationRequest)
     o.result = solve(op; callback)
 end
 
-#-----------------------------------------------------------------------------# DataServiceModel
+#-----------------------------------------------------------------------------# SimObject
 # https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/schemas/simulation.json
 # How a model/simulation is represented in TDS
-# you can HTTP.get("$TDS_URL/simulation") and the JSON3.read(body, DataServiceModel)
-Base.@kwdef mutable struct DataServiceModel
+# you can HTTP.get("$TDS_URL/simulation") and the JSON3.read(body, SimObject)
+Base.@kwdef mutable struct SimObject
     # Required
     id::String = ""                                         # matches with our `id`
     engine::String = "sciml"                                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
@@ -280,20 +281,20 @@ Base.@kwdef mutable struct DataServiceModel
     # Optional
     name::Union{Nothing, String} = nothing                  # (ignore)
     description::Union{Nothing, String} = nothing           # (ignore)
-    timestamp::Union{Nothing, DateTime} = nothing           # (ignore?)
+    timestamp::Union{Nothing, Dates.DateTime} = nothing     # (ignore?)
     result_files::Union{Nothing, Vector{String}} = nothing  # URLs of result files in S3
     status::Union{Nothing, String} = "queued"               # queued|running|complete|error|cancelled|failed"
     reason::Union{Nothing, String} = nothing                # why simulation failed (returned junk results)
-    start_time::Union{Nothing, DateTime} = nothing          # when job started
-    completed_time::Union{Nothing, DateTime} = nothing      # when job completed
+    start_time::Union{Nothing, Dates.DateTime} = nothing    # when job started
+    completed_time::Union{Nothing, Dates.DateTime} = nothing  # when job completed
     user_id::Union{Nothing, Int64} = nothing                # (ignore)
     project_id::Union{Nothing, Int64} = nothing             # (ignore)
 end
 
 # For JSON3 read/write
-StructTypes.StructType(::Type{DataServiceModel}) = StructTypes.Mutable()
+StructTypes.StructType(::Type{SimObject}) = StructTypes.Mutable()
 
-# PIRACY to fix JSON3.read(str, DataServiceModel)
+# PIRACY to fix JSON3.read(str, SimObject)
 # TODO make upstream issue in JSON3
 JSON3.Object(x::AbstractDict) = JSON3.read(JSON3.write(x))
 
@@ -307,9 +308,9 @@ route2type = Dict(
     "ensemble-calibrate" => "ensemble"
 )
 
-# Initialize a DataServiceModel
-function DataServiceModel(o::OperationRequest)
-    m = DataServiceModel()
+# Initialize a SimObject
+function SimObject(o::OperationRequest)
+    m = SimObject()
     m.id = o.id
     m.type = route2type[o.route]
     m.execution_payload = o.obj
@@ -319,15 +320,15 @@ end
 #-----------------------------------------------------------------------------# debug_data
 # For debugging: Try to recreate the OperationRequest from TDS data
 # NOTE: TDS does not save which route was used...
-function OperationRequest(m::DataServiceModel)
+function OperationRequest(m::SimObject)
     req = HTTP.Request("POST", "", [], JSON3.write(m.execution_payload))
-    return OperationRequest(req, "DataServiceModel: $(m.type)")
+    return OperationRequest(req, "SimObject: $(m.type)")
 end
 
 # Dump all the info we can get about a simulation `id`
 function debug_data(id::String)
     @assert ENABLE_TDS[]
-    data_service_model = DataServiceModel(id::String)
+    data_service_model = SimObject(id::String)
     request_json = data_service_model.execution_payload
     amr = get_model(data_service_model.execution_payload.model_config_id)
     operation_request = OperationRequest(data_service_model)
@@ -352,23 +353,34 @@ publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 #----------------------------------------------------------------------------# TDS GET interactions
 # Each function in this section assumes ENABLE_TDS=true
 
-function DataServiceModel(id::String)
-    @assert ENABLE_TDS[]
-    @info "DataServiceModel($(repr(id)))"
+function SimObject(id::String)
+    if !ENABLE_TDS[]
+        @info "mock_SimObject($(repr(id)))"
+        return mock_SimObject(id)
+    end
+    @info "SimObject($(repr(id)))"
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
     res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
-    return JSON3.read(res.body, DataServiceModel)
+    return JSON3.read(res.body, SimObject)
 end
+mock_SimObject(id::String) = mock_tds[]["simulations"][id]
 
 function get_model(id::String)
-    @assert ENABLE_TDS[]
+    if !ENABLE_TDS[]
+        @info "mock_get_model($(repr(id)))"
+        return mock_get_model(id)
+    end
     @info "get_model($(repr(id)))"
     get_json("$(TDS_URL[])/model_configurations/$id").configuration
 end
+mock_get_model(id::String) = mock_tds[]["model_configurations"][id]
 
 function get_dataset(obj::JSON3.Object)
-    @assert ENABLE_TDS[]
+    if !ENABLE_TDS[]
+        @info "mock_get_dataset with obj = $(JSON3.write(obj))"
+        return mock_get_dataset(obj)
+    end
     @info "get_dataset with obj = $(JSON3.write(obj))"
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
@@ -381,6 +393,7 @@ function get_dataset(obj::JSON3.Object)
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end
+mock_get_dataset(obj::JSON3.Object) = mock_tds[]["datasets"][obj.id]
 
 
 #-----------------------------------------------------------------------# TDS PUT/POST interactions
@@ -388,10 +401,10 @@ end
 # - If ENABLE_TDS=true, they PUT/POST a JSON payload to the TDS
 # - If ENABLE_TDS=false, they log and return the JSON payload they would have PUT/POST
 
-# initialize the DataServiceModel in TDS: POST /simulations/{id}
+# initialize the SimObject in TDS: POST /simulations/{id}
 function create(o::OperationRequest)
     @info "create: $o"
-    m = DataServiceModel(o)
+    m = SimObject(o)
     body = JSON3.write(m)
     if !ENABLE_TDS[]
          @warn "TDS disabled - `create` $o: $body"
@@ -400,19 +413,19 @@ function create(o::OperationRequest)
     HTTP.post("$(TDS_URL[])/simulations/", json_header; body)
 end
 
-# update the DataServiceModel in TDS: PUT /simulations/{id}
-# kw args and their types much match field::fieldtype in DataServiceModel
+# update the SimObject in TDS: PUT /simulations/{id}
+# kw args and their types much match field::fieldtype in SimObject
 function update(o::OperationRequest; kw...)
     @info "update $o"
     if !ENABLE_TDS[]
         @warn "TDS disabled - `update` $o: $(JSON3.write(kw))"
         return JSON3.write(kw)
     end
-    m = DataServiceModel(o.id)
+    m = SimObject(o.id)
     for (k,v) in kw
         isnothing(v) ?
             setproperty!(m, k, v) :
-            setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
+            setproperty!(m, k, Base.nonnothingtype(fieldtype(SimObject, k))(v))
     end
     HTTP.put("$(TDS_URL[])/simulations/$(o.id)", json_header; body=JSON3.write(m))
 end

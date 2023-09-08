@@ -4,35 +4,35 @@
 # The AMR is the `model` field of an OperationRequest
 
 
-# Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(amr::JSON3.Object, ::Type{ODESystem})
+# Get `MTK.ODESystem` from AMR
+function amr_get(amr::JSON3.Object, ::Type{MTK.ODESystem})
     @info "amr_get ODESystem"
     model = amr.model
     ode = amr.semantics.ode
 
-    t = only(@variables t)
-    D = Differential(t)
+    t = only(MTK.@variables t)
+    D = MTK.Differential(t)
 
     statenames = [Symbol(s.id) for s in model.states]
-    statevars  = [only(@variables $s) for s in statenames]
-    statefuncs = [only(@variables $s(t)) for s in statenames]
+    statevars  = [only(MTK.@variables $s) for s in statenames]
+    statefuncs = [only(MTK.@variables $s(t)) for s in statenames]
     obsnames   = [Symbol(o.id) for o in ode.observables]
-    obsvars    = [only(@variables $o) for o in obsnames]
-    obsfuncs   = [only(@variables $o(t)) for o in obsnames]
+    obsvars    = [only(MTK.@variables $o) for o in obsnames]
+    obsfuncs   = [only(MTK.@variables $o(t)) for o in obsnames]
     allvars    = [statevars; obsvars]
     allfuncs   = [statefuncs; obsfuncs]
 
     # get parameter values and state initial values
     paramnames = [Symbol(x.id) for x in ode.parameters]
-    paramvars = [only(@parameters $x) for x in paramnames]
+    paramvars = [only(MTK.@parameters $x) for x in paramnames]
     paramvals = [x.value for x in ode.parameters]
     sym_defs = paramvars .=> paramvals
     initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
-    initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
+    initial_vals = map(x -> MTK.substitute(x, sym_defs), initial_exprs)
 
     # build equations from transitions and rate expressions
     rates = Dict(Symbol(x.target) => MathML.parse_str(x.expression_mathml) for x in ode.rates)
-    eqs = Dict(s => Num(0) for s in statenames)
+    eqs = Dict(s => MTK.Num(0) for s in statenames)
     for tr in model.transitions
         ratelaw = rates[Symbol(tr.id)]
         for s in tr.input
@@ -46,59 +46,52 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     end
 
     subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
-    eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
+    eqs = [D(statef) ~ MTK.substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
 
     for (o, ofunc) in zip(ode.observables, obsfuncs)
-        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
+        expr = MTK.substitute(MathML.parse_str(o.expression_mathml), subst)
         push!(eqs, ofunc ~ expr)
     end
 
     defaults = [statefuncs .=> initial_vals; sym_defs]
     name = Symbol(amr.header.name)
-    sys = structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults, name))
+    sys = MTK.structural_simplify(MTK.ODESystem(eqs, t, allfuncs, paramvars; defaults, name))
     @info "amr_get(amr, ODESystem) --> $sys"
 
     sys
 end
 
 # priors
-function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
+function amr_get(amr::JSON3.Object, sys::MTK.ODESystem, ::Val{:priors})
     @info "amr_get priors"
-    paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
+    paramlist = MTK.parameters(sys)
     namelist = nameof.(paramlist)
 
     priors = map(amr.semantics.ode.parameters) do p
         if haskey(p, :distribution)
+            dist = p.distribution
             # Assumption: only fit parameters which have a distribution / bounds
-            if p.distribution.type != "StandardUniform1" && p.distribution.type != "Uniform1"
-                @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
+            if dist.type ∉ ["StandardUniform1", "Uniform1"]
+                @warn "Invalid distribution type.  Expected \"StandardUniform1\" or \"Uniform1\". Found $(repr(dist.type))."
             end
 
-            minval = if p.distribution.parameters.minimum isa Number
-                p.distribution.parameters.minimum
-            elseif p.distribution.parameters.minimum isa AbstractString
-                @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
-                parse(Float64, p.distribution.parameters.minimum)
-            end
+            _min = dist.parameters.minimum
+            _max = dist.parameters.maximum
 
-            maxval = if p.distribution.parameters.maximum isa Number
-                p.distribution.parameters.maximum
-            elseif p.distribution.parameters.maximum isa AbstractString
-                @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
-                parse(Float64, p.distribution.parameters.maximum)
-            end
+            @info "prior: $(p.id) ~ Uniform($_min::$(typeof(_min)), $_max::$(typeof(_max)))"
+            minval = _min isa Number ? _min : parse(Float64, _min)
+            maxval = _max isa Number ? _max : parse(Float64, _max)
 
-            dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
-            paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+            paramlist[findfirst(==(Symbol(p.id)), namelist)] => Distributions.Uniform(minval, maxval)
         end
     end
     priors = filter(!isnothing, priors)
 end
 
 # data
-function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
-    @info "parse dataset into calibrate format"
-    statelist = states(sys)
+function amr_get(df::DataFrame, sys::MTK.ODESystem, ::Val{:data})
+    @info "amr_get data"
+    statelist = MTK.states(sys)
     statenames = string.(statelist)
     statenames = [replace(nm, "(t)" => "") for nm in statenames]
 
@@ -123,10 +116,10 @@ function (o::IntermediateResults)(integrator)
     if o.last_callback + o.every ≤ Dates.now()
         o.last_callback = Dates.now()
         (; iter, t, u, uprev) = integrator
-        publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=norm(u - uprev), id=o.id,
+        publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=LinearAlgebra.norm(u - uprev), id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
-    EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
+    DifferentialEquations.u_modified!(integrator, false)
 end
 
 get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
@@ -134,31 +127,29 @@ get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, Intermed
 
 
 #----------------------------------------------------------------------# dataframe_with_observables
-function dataframe_with_observables(sol::ODESolution)
+function dataframe_with_observables(sol::MTK.ODESolution)
     sys = sol.prob.f.sys
-    names = [states(sys); getproperty.(observed(sys), :lhs)]
+    names = [MTK.states(sys); getproperty.(MTK.observed(sys), :lhs)]
     cols = ["timestamp" => sol.t; [string(n) => sol[n] for n in names]]
     DataFrame(cols)
 end
-
 
 #-----------------------------------------------------------------------------# Operations
 abstract type Operation end
 
 #-----------------------------------------------------------------------------# simulate
 struct Simulate <: Operation
-    sys::ODESystem
+    sys::MTK.ODESystem
     timespan::Tuple{Float64, Float64}
 end
 
 function Simulate(o::OperationRequest)
-    sys = amr_get(o.model, ODESystem)
+    sys = amr_get(o.model, MTK.ODESystem)
     Simulate(sys, o.timespan)
 end
 
 function solve(op::Simulate; callback)
-    # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
-    prob = ODEProblem(op.sys, [], op.timespan)
+    prob = MTK.ODEProblem(op.sys, [], op.timespan)
     sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
@@ -166,7 +157,7 @@ end
 
 #-----------------------------------------------------------------------------# Calibrate
 struct Calibrate <: Operation
-    sys::ODESystem
+    sys::MTK.ODESystem
     timespan::Tuple{Float64, Float64}
     priors::Vector
     data::Any
@@ -177,7 +168,7 @@ struct Calibrate <: Operation
 end
 
 function Calibrate(o::OperationRequest)
-    sys = amr_get(o.model, ODESystem)
+    sys = amr_get(o.model, MTK.ODESystem)
     priors = amr_get(o.model, sys, Val(:priors))
     data = amr_get(o.df, sys, Val(:data))
 
@@ -196,19 +187,19 @@ function Calibrate(o::OperationRequest)
 end
 
 function solve(o::Calibrate; callback)
-    prob = ODEProblem(o.sys, [], o.timespan)
-    statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+    prob = MTK.ODEProblem(o.sys, [], o.timespan)
+    statenames = [MTK.states(o.sys);getproperty.(MTK.observed(o.sys), :lhs)]
 
     if o.calibrate_method == "bayesian"
-        p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
+        p_posterior = EMA.bayesian_datafit(prob, o.priors, o.data;
                                                         nchains = 2,
                                                         niter = 100,
-                                                        mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
+                                                        mcmcensemble = Turing.MCMCSerial())
 
         pvalues = last.(p_posterior)
 
-        probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
-        enprob = EasyModelAnalysis.EnsembleProblem(probs)
+        probs = [EMA.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
+        enprob = EMA.EnsembleProblem(probs)
         ensol = solve(enprob; saveat = 1, callback)
         outs = map(1:length(probs)) do i
             mats = stack(ensol[i][statenames])'
@@ -224,16 +215,16 @@ function solve(o::Calibrate; callback)
         dfsim, dfparam
     elseif o.calibrate_method == "local" || o.calibrate_method == "global"
         if o.calibrate_method == "local"
-            init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
-            fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
+            init_params = Pair.(MTK.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
+            fit = EMA.datafit(prob, init_params, o.data)
         else
 
-            init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
+            init_params = Pair.(MTK.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
+            fit = EMA.global_datafit(prob, init_params, o.data)
         end
 
-        newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
-        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1, callback)
+        newprob = DifferentialEquations.remake(prob, p=fit)
+        sol = solve(newprob; saveat = 1, callback)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
@@ -273,7 +264,7 @@ end
 
 function solve(o::Ensemble{Simulate}; callback)
     systems = [sim.sys for sim in o.operations]
-    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
+    probs = MTK.ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
     enprob = EMA.EnsembleProblem(probs)
     sol = solve(enprob; saveat = 1, callback);
     weights = [0.2, 0.5, 0.3]
@@ -282,13 +273,12 @@ end
 
 
 function solve(o::Ensemble{Calibrate}; callback)
-    EMA = EasyModelAnalysis
-    probs = [ODEProblem(cal.sys, [], o.timespan) for cal in o.operations]
+    probs = [MTK.ODEProblem(cal.sys, [], o.timespan) for cal in o.operations]
     error("TODO")
 
 
-    # probs = [ODEProblem(s, [], o.timespan) for s in sys]
-    # ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
+    # probs = [MTK.ODEProblem(s, [], o.timespan) for s in sys]
+    # ps = [[β => Distributions.Uniform(0.01, 10.0), γ => Distributions.Uniform(0.01, 10.0)] for i in 1:3]
     # datas = [data_train,data_train,data_train]
     # enprobs = EMA.bayesian_ensemble(probs, ps, datas)
     # ensem_weights = EMA.ensemble_weights(sol, data_ensem)
@@ -308,8 +298,8 @@ end
 
 
 # struct Ensemble <: Operation
-#     sys::Vector{ODESystem}
-#     priors::Vector{Pair{Num,Any}} # Any = Distribution
+#     sys::Vector{MTK.ODESystem}
+#     priors::Vector{Pair{MTK.Num,Any}} # Any = Distribution
 #     train_datas::Any
 #     ensem_datas::Any
 #     t_forecast::Vector{Float64}
@@ -317,13 +307,13 @@ end
 # end
 
 # function Ensemble(o::OperationRequest)
-#     sys = amr_get.(o.models, ODESystem)
+#     sys = amr_get.(o.models, MTK.ODESystem)
 # end
 
 # function solve(o::Ensemble; callback)
-#     EMA = EasyModelAnalysis
-#     probs = [ODEProblem(s, [], o.timespan) for s in sys]
-#     ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
+#     EMA = EMA
+#     probs = [MTK.ODEProblem(s, [], o.timespan) for s in sys]
+#     ps = [[β => Distributions.Uniform(0.01, 10.0), γ => Distributions.Uniform(0.01, 10.0)] for i in 1:3]
 #     datas = [data_train,data_train,data_train]
 #     enprobs = EMA.bayesian_ensemble(probs, ps, datas)
 #     ensem_weights = EMA.ensemble_weights(sol, data_ensem)
