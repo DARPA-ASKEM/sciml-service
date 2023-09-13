@@ -68,23 +68,23 @@ function __init__()
 
     HOST[] = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
     PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
-    ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
+    ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
     TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
     TDS_RETRIES[] = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
-    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
+    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && ENABLE_TDS[]
     RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
     RABBITMQ_PASSWORD[] = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
-    RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
+    RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
-            (; MECHANISM = "AMQPLAIN", LOGIN=RABBITMQ_LOGIN, PASSWORD=RABBITMQ_PASSWORD)
+            ("MECHANISM" => "AMQPLAIN", "LOGIN" => RABBITMQ_LOGIN[], "PASSWORD" => RABBITMQ_PASSWORD[])
         )
-        conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT, auth_params)
+        conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT[], auth_params)
 
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
-        AMQPClient.queue_declare(rabbitmq_channel[], "sciml-queue")
+        AMQPClient.queue_declare(rabbitmq_channel[], RABBITMQ_ROUTE[]; durable=true)
     end
 
     v = Pkg.Types.read_project("Project.toml").version
@@ -344,7 +344,7 @@ function publish_to_rabbitmq(content)
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
-    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
+    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=RABBITMQ_ROUTE[])
 end
 publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
