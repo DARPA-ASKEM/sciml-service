@@ -26,7 +26,7 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     paramnames = [Symbol(x.id) for x in ode.parameters]
     paramvars = [only(@parameters $x) for x in paramnames]
     paramvals = [x.value for x in ode.parameters]
-    sym_defs = Dict(paramvars .=> paramvals)
+    sym_defs = paramvars .=> paramvals
     initial_exprs = [MathML.parse_str(x.expression_mathml) for x in ode.initials]
     initial_vals = map(x -> substitute(x, sym_defs), initial_exprs)
 
@@ -120,8 +120,12 @@ end
 function (o::IntermediateResults)(integrator)
     if o.last_callback + o.every ≤ Dates.now()
         o.last_callback = Dates.now()
-        (; iter, t, u, p) = integrator
-        publish_to_rabbitmq(; iter=iter, time=t, state=u, params = p, id=o.id,
+        (; iter, f, t, u, p) = integrator
+
+        state_dict = Dict(states(f.sys) .=> u)
+        param_dict = Dict(params(f.sys) .=> p)
+
+        publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
