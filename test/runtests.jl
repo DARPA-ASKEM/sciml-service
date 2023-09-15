@@ -124,7 +124,7 @@ end
         obj = SimulationService.get_json(json_url)
         sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
-        df = solve(op)
+        df = solve(op; callback = nothing)
         @test df isa DataFrame
         @test extrema(df.timestamp) == (0.0, 99.0)
     end
@@ -141,9 +141,9 @@ end
         ode_method = nothing
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 
-        dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+        dfsim, dfparam = solve(o; callback = nothing)
 
-        statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+        statenames = [states(o.sys); getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",reduce(vcat,[string.("ensemble",i,"_", statenames) for i in 1:size(dfsim,2)÷length(statenames)]))
         @test names(dfparam) == string.(parameters(sys))
 
@@ -214,58 +214,52 @@ end
 
 #-----------------------------------------------------------------------------# test routes
 @testset "Server Routes" begin
-    start!()
+    SimulationService.with_server() do url
+        @testset "/" begin
+            res = HTTP.get(url)
+            @test res.status == 200
+            @test JSON3.read(res.body).status == "ok"
+        end
 
-    url = SimulationService.server_url[]
+        @testset "/docs" begin
+            res = HTTP.get("$url/docs")
+            @test res.status == 200
+        end
 
-    sleep(3) # Give server a chance to start
+        # Check the status of a job until it finishes
+        function test_until_done(id::String, every=2)
+            t = now()
+            while true
+                st = get_json("$url/status/$id").status
+                @info "status from job $(repr(id)) - ($(round(now() - t, Dates.Second))): $st"
+                st in ["queued", "running", "complete"] && @test true
+                st in ["failed", "error"] && (@test false; break)
+                st == "complete" && break
+                sleep(every)
+            end
+        end
 
-    @testset "/" begin
-        res = HTTP.get(url)
-        @test res.status == 200
-        @test JSON3.read(res.body).status == "ok"
-    end
+        @testset "/simulate" begin
+            for body in simulate_payloads
+                res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id)
+                @test SimulationService.last_operation[].result isa DataFrame
+            end
+        end
 
-    @testset "/docs" begin
-        res = HTTP.get("$url/docs")
-        @test res.status == 200
-    end
+        @testset "/calibrate" begin
+            for body in calibrate_payloads
+                res = HTTP.post("$url/calibrate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id, 5)
+            end
+        end
 
-    # Check the status of a job until it finishes
-    function test_until_done(id::String, every=2)
-        t = now()
-        while true
-            st = get_json("$url/status/$id").status
-            @info "status from job $(repr(id)) - ($(round(now() - t, Dates.Second))): $st"
-            st in ["queued", "running", "complete"] && @test true
-            st in ["failed", "error"] && (@test false; break)
-            st == "complete" && break
-            sleep(every)
+        @testset "/ensemble" begin
+            @test true # TODO
         end
     end
-
-    @testset "/simulate" begin
-        for body in simulate_payloads
-            res = HTTP.post("$url/simulate", ["Content-Type" => "application/json"]; body)
-            @test res.status == 201
-            id = JSON3.read(res.body).simulation_id
-            test_until_done(id)
-            @test SimulationService.last_operation[].result isa DataFrame
-        end
-    end
-
-    @testset "/calibrate" begin
-        for body in calibrate_payloads
-            res = HTTP.post("$url/calibrate", ["Content-Type" => "application/json"]; body)
-            @test res.status == 201
-            id = JSON3.read(res.body).simulation_id
-            test_until_done(id, 5)
-        end
-    end
-
-    @testset "/ensemble" begin
-        @test true # TODO
-    end
-
-    stop!()
 end

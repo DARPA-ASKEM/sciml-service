@@ -15,6 +15,7 @@ EasyModelAnalysis = "ef4b24a4-a090-4686-a932-e7e56a5a83bd"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+JSONSchema = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
 JobSchedulers = "eeff360b-c02d-44d3-ab26-4013c616a17e"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MathML = "abcecc63-2b08-419c-80c4-c63dca6fa478"
@@ -32,6 +33,7 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
+julia = "1.9"
 AMQPClient = "0.5"
 CSV = "0.10"
 DataFrames = "1.6"
@@ -46,7 +48,6 @@ Oxygen = "1.1"
 SciMLBase = "1.93"
 SwaggerMarkdown = "0.2"
 YAML = "0.4"
-julia = "1.9"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

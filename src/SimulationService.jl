@@ -15,7 +15,7 @@ import HTTP
 import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
-# import JSONSchema (TODO: validate requests)
+import JSONSchema
 import LinearAlgebra: norm
 import MathML
 import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed
@@ -38,7 +38,9 @@ const rabbitmq_channel = Ref{Any}()
 const openapi_spec = Ref{Dict}()
 const simulation_schema = Ref{JSON3.Object}()
 const petrinet_schema = Ref{JSON3.Object}()
+const petrinet_JSONSchema_object = Ref{JSONSchema.Schema}()
 const server_url = Ref{String}()
+const mock_tds = Ref{Dict{String, Dict{String, JSON3.Object}}}()  # e.g. "model" => "model_id" => model
 
 #-----# Environmental Variables:
 # Server configuration
@@ -62,25 +64,27 @@ function __init__()
     openapi_spec[] = YAML.load_file(download("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/openapi.yaml"))
     simulation_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-api-spec/main/schemas/simulation.json")
     petrinet_schema[] = get_json("https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/petrinet_schema.json")
+    petrinet_JSONSchema_object[] = JSONSchema.Schema(petrinet_schema[])
 
     HOST[] = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
     PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
-    ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true" #
+    ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
     TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
     TDS_RETRIES[] = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
-    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && SIMSERVICE_ENABLE_TDS
+    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && ENABLE_TDS[]
     RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
     RABBITMQ_PASSWORD[] = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
-    RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "terarium")
+    RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
-            (; MECHANISM = "AMQPLAIN", LOGIN=RABBITMQ_LOGIN, PASSWORD=RABBITMQ_PASSWORD)
+            ("MECHANISM" => "AMQPLAIN", "LOGIN" => RABBITMQ_LOGIN[], "PASSWORD" => RABBITMQ_PASSWORD[])
         )
-        conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT, auth_params)
-        @info typeof(AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true))
+        conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT[], auth_params)
+
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
+        AMQPClient.queue_declare(rabbitmq_channel[], RABBITMQ_ROUTE[]; durable=true)
     end
 
     v = Pkg.Types.read_project("Project.toml").version
@@ -130,6 +134,19 @@ get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
+# Run some code with a running server
+function with_server(f::Function; wait=1)
+    try
+        start!()
+        sleep(wait)
+        url = SimulationService.server_url[]
+        f(url)
+    catch ex
+        rethrow(ex)
+    finally
+        stop!()
+    end
+end
 
 #-----------------------------------------------------------------------------# job endpoints
 get_job(id::String) = JobSchedulers.job_query(jobhash(id))
@@ -195,7 +212,7 @@ end
 
 function OperationRequest(req::HTTP.Request, route::String)
     o = OperationRequest()
-    @info "[$(o.id)] OperationRequest recieved to route /$route: $(String(copy(req.body)))"
+    @info "[$(o.id)] OperationRequest received to route /$route: $(String(copy(req.body)))"
     o.obj = JSON3.read(req.body)
     o.route = route
     for (k,v) in o.obj
@@ -213,11 +230,30 @@ function OperationRequest(req::HTTP.Request, route::String)
         k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
 
         # For testing only:
-        k == :local_model_configuration_file ? (o.model = JSON.read(v).configuration) :
+        k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :
         k == :local_model_file ? (o.model = JSON3.read(v)) :
         k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :
         nothing
     end
+
+    # Checks if the JSON model is valid against the petrinet schema
+    # If not valid, produces a warning saying why
+    if !isnothing(o.model)
+        valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],o.model)
+        if !isnothing(valid_against_schema)
+            @warn "Object not valid against schema: $(valid_against_schema)"
+        end
+    end
+
+    if !isnothing(o.models)
+        for model in o.models
+            valid_against_schema = JSONSchema.validate(petrinet_JSONSchema_object[],model)
+            if !isnothing(valid_against_schema)
+                @warn "Object not valid against schema: $(valid_against_schema)"
+            end
+        end
+    end
+
     return o
 end
 
@@ -308,7 +344,7 @@ function publish_to_rabbitmq(content)
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
-    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=SIMSERVICE_RABBITMQ_ROUTE)
+    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=RABBITMQ_ROUTE[])
 end
 publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
@@ -341,7 +377,7 @@ function get_dataset(obj::JSON3.Object)
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
         rename!(df, k => v)
     end
-    "timestep" in names(df) && rename!(df, "timestep" => "timestep")  # hack to get df in our "schema"
+    "timestep" in names(df) && rename!(df, "timestep" => "timestamp")  # hack to get df in our "schema"
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end

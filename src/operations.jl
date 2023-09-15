@@ -53,7 +53,9 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
         push!(eqs, ofunc ~ expr)
     end
 
-    sys = structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults = [statefuncs .=> initial_vals; sym_defs], name=Symbol(amr.name)))
+    defaults = [statefuncs .=> initial_vals; sym_defs]
+    name = Symbol(amr.header.name)
+    sys = structural_simplify(ODESystem(eqs, t, allfuncs, paramvars; defaults, name))
     @info "amr_get(amr, ODESystem) --> $sys"
 
     sys
@@ -158,10 +160,10 @@ function Simulate(o::OperationRequest)
     Simulate(sys, o.timespan)
 end
 
-function solve(op::Simulate; kw...)
+function solve(op::Simulate; callback)
     # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, kw...)
+    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
@@ -211,7 +213,7 @@ function solve(o::Calibrate; callback)
 
         probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
         enprob = EasyModelAnalysis.EnsembleProblem(probs)
-        ensol = solve(enprob, saveat = 1)
+        ensol = solve(enprob; saveat = 1, callback)
         outs = map(1:length(probs)) do i
             mats = stack(ensol[i][statenames])'
             headers = string.("ensemble",i,"_", statenames)
@@ -235,7 +237,7 @@ function solve(o::Calibrate; callback)
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
-        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1)
+        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1, callback)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
@@ -277,7 +279,7 @@ function solve(o::Ensemble{Simulate}; callback)
     systems = [sim.sys for sim in o.operations]
     probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
     enprob = EMA.EnsembleProblem(probs)
-    sol = solve(enprob; saveat = 1);
+    sol = solve(enprob; saveat = 1, callback);
     weights = [0.2, 0.5, 0.3]
     data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in error("What goes here?")]
 end
@@ -297,7 +299,7 @@ function solve(o::Ensemble{Calibrate}; callback)
 
     # forecast_probs = [EMA.remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
     # fit_enprob = EMA.EnsembleProblem(forecast_probs)
-    # sol = solve(fit_enprob; saveat = o.t_forecast);
+    # sol = solve(fit_enprob; saveat = o.t_forecast, callback);
 
     # soldata = DataFrame([sol.t; Matrix(sol[names])'])
 
@@ -332,7 +334,7 @@ end
 
 #     forecast_probs = [EMA.remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
 #     fit_enprob = EMA.EnsembleProblem(forecast_probs)
-#     sol = solve(fit_enprob; saveat = o.t_forecast);
+#     sol = solve(fit_enprob; saveat = o.t_forecast, callback);
 
 #     soldata = DataFrame([sol.t; Matrix(sol[names])'])
 
