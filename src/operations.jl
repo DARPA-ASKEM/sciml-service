@@ -125,7 +125,7 @@ function (o::IntermediateResults)(integrator)
         (; iter, f, t, u, p) = integrator
 
         state_dict = Dict(states(f.sys) .=> u)
-        param_dict = Dict(params(f.sys) .=> p)
+        param_dict = Dict(parameters(f.sys) .=> p)
 
         publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
