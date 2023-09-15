@@ -55,6 +55,7 @@ const RABBITMQ_ENABLED = Ref{Bool}()
 const RABBITMQ_LOGIN = Ref{String}()
 const RABBITMQ_PASSWORD = Ref{String}()
 const RABBITMQ_ROUTE = Ref{String}()
+const RABBITMQ_HOST = Ref{String}()
 const RABBITMQ_PORT = Ref{Int}()
 
 function __init__()
@@ -75,13 +76,14 @@ function __init__()
     RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
     RABBITMQ_PASSWORD[] = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
     RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
+    RABBITMQ_HOST[] = get(ENV, "SIMSERVICE_RABBITMQ_HOST", "localhost")
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
 
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
             ("MECHANISM" => "AMQPLAIN", "LOGIN" => RABBITMQ_LOGIN[], "PASSWORD" => RABBITMQ_PASSWORD[])
         )
-        conn = AMQPClient.connection(; virtualhost="/", host="localhost", port=RABBITMQ_PORT[], auth_params)
+        conn = AMQPClient.connection(; virtualhost="/", host=RABBITMQ_HOST[], port=RABBITMQ_PORT[], auth_params)
 
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
         AMQPClient.queue_declare(rabbitmq_channel[], RABBITMQ_ROUTE[]; durable=true)
