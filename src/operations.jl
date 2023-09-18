@@ -122,8 +122,12 @@ end
 function (o::IntermediateResults)(integrator)
     if o.last_callback + o.every ≤ Dates.now()
         o.last_callback = Dates.now()
-        (; iter, t, u, uprev) = integrator
-        publish_to_rabbitmq(; iter=iter, time=t, params=u, abserr=norm(u - uprev), id=o.id,
+        (; iter, f, t, u, p) = integrator
+
+        state_dict = Dict(states(f.sys) .=> u)
+        param_dict = Dict(parameters(f.sys) .=> p)
+
+        publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
