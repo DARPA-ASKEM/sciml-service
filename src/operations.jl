@@ -124,8 +124,8 @@ function (o::IntermediateResults)(integrator)
         o.last_callback = Dates.now()
         (; iter, f, t, u, p) = integrator
 
-        state_dict = Dict(ModelingToolkit.states(f.sys) .=> u)
-        param_dict = Dict(ModelingToolkit.parameters(f.sys) .=> p)
+        state_dict = Dict(states(f.sys) .=> u)
+        param_dict = Dict(parameters(f.sys) .=> p)
 
         publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
