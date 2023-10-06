@@ -5,7 +5,7 @@ networks:
     name: sim-execution
 services:
   api:
-    container_name: simulation-service
+    container_name: sciml-service
     build: 
       context: ../
       dockerfile: docker/Dockerfile.api
