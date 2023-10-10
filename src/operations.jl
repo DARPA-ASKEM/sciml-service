@@ -146,28 +146,6 @@ end
 #get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
 #                                                      save_positions = (false,false))
 
-function get_callback(o::OperationRequest)
-    optype = route2operation_type[o.route]
-    get_callback(optype)
-end
-
-# callback for Simulate requests
-function get_callback(o::Simulate)
-    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
-                                                    save_positions = (false,false))
-end
-
-# callback for Calibrate requests
-function get_callback(o::Calibrate)
-    function (p,lossval,ode_sol)  
-        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
-        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
-        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
-    end
-end
-
-
-
 #----------------------------------------------------------------------# dataframe_with_observables
 function dataframe_with_observables(sol::ODESolution)
     sys = sol.prob.f.sys
@@ -376,6 +354,28 @@ end
 
 #-----------------------------------------------------------------------------# All operations
 # :simulate => Simulate, etc.
+
+function get_callback(o::OperationRequest)
+    optype = route2operation_type[o.route]
+    get_callback(optype)
+end
+
+# callback for Calibrate requests
+function get_callback(o::Calibrate)
+    function (p,lossval,ode_sol)  
+        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
+        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
+        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
+    end
+end
+
+# callback for Simulate requests
+function get_callback(o::Simulate)
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
+                                                    save_positions = (false,false))
+end
+
+
 const route2operation_type = Dict(
     "simulate" => Simulate,
     "calibrate" => Calibrate,
