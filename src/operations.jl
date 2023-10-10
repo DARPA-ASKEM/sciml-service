@@ -115,12 +115,22 @@ mutable struct IntermediateResults
     last_callback::Dates.DateTime  # Track the last time the callback was called
     every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
     id::String
-    function IntermediateResults(id::String; every=Dates.Second(5))
-        new(typemin(Dates.DateTime), every, id)
+    every_iteration::Bool
+    function IntermediateResults(id::String; every=Dates.Second(5), every_iteration = false)
+        new(typemin(Dates.DateTime), every, id, every_iteration)
     end
 end
+
 function (o::IntermediateResults)(integrator)
-    if o.last_callback + o.every ≤ Dates.now()
+    if o.every_iteration == true
+        (; iter, f, t, u, p) = integrator
+
+        state_dict = Dict(states(f.sys) .=> u)
+        param_dict = Dict(parameters(f.sys) .=> p)
+
+        publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
+            retcode=SciMLBase.check_error(integrator))
+    else if o.last_callback + o.every ≤ Dates.now() && every_iteration == false
         o.last_callback = Dates.now()
         (; iter, f, t, u, p) = integrator
 
@@ -133,8 +143,29 @@ function (o::IntermediateResults)(integrator)
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
-get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
-                                                      save_positions = (false,false))
+#get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
+#                                                      save_positions = (false,false))
+
+function get_callback(o::OperationRequest)
+    optype = route2operation_type[o.route]
+    get_callback(optype)
+end
+
+# callback for Simulate requests
+function get_callback(o::Simulate)
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id),
+                                                    save_positions = (false,false))
+end
+
+# callback for Calibrate requests
+function get_callback(o::Calibrate)
+    function (p,lossval,ode_sol)  
+        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
+        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
+        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
+    end
+end
+
 
 
 #----------------------------------------------------------------------# dataframe_with_observables
@@ -161,9 +192,8 @@ function Simulate(o::OperationRequest)
 end
 
 function solve(op::Simulate; callback)
-    # joshday: What does providing `u0 = []` do?  Don't we know what u0 is from AMR?
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback)
+    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback = callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
@@ -199,10 +229,12 @@ function Calibrate(o::OperationRequest)
     Calibrate(sys, o.timespan, priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 end
 
+# Jadon Clugston: maybe we want separate callbacks for the optimizer and the ode solve?
 function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
 
+    # todo: fix this when ensembles are fixed
     if o.calibrate_method == "bayesian"
         p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
                                                         nchains = 2,
@@ -213,7 +245,7 @@ function solve(o::Calibrate; callback)
 
         probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
         enprob = EasyModelAnalysis.EnsembleProblem(probs)
-        ensol = solve(enprob; saveat = 1, callback)
+        ensol = solve(enprob; saveat = 1, solve_kws = (callback = callback,))
         outs = map(1:length(probs)) do i
             mats = stack(ensol[i][statenames])'
             headers = string.("ensemble",i,"_", statenames)
@@ -229,15 +261,14 @@ function solve(o::Calibrate; callback)
     elseif o.calibrate_method == "local" || o.calibrate_method == "global"
         if o.calibrate_method == "local"
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
-            fit = EasyModelAnalysis.datafit(prob, init_params, o.data)
+            fit = EasyModelAnalysis.datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
         else
-
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data)
+            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
-        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1, callback)
+        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1)#, callback = callback)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
@@ -286,7 +317,6 @@ end
 
 
 function solve(o::Ensemble{Calibrate}; callback)
-    EMA = EasyModelAnalysis
     probs = [ODEProblem(cal.sys, [], o.timespan) for cal in o.operations]
     error("TODO")
 
