@@ -361,7 +361,7 @@ function get_callback(o::OperationRequest)
 end
 
 # callback for Calibrate requests
-function get_callback(o::Calibrate)
+function get_callback(::Type{Calibrate})
     function (p,lossval,ode_sol)  
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
         state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
@@ -370,7 +370,7 @@ function get_callback(o::Calibrate)
 end
 
 # callback for Simulate requests
-function get_callback(o::Simulate)
+function get_callback(::Type{Simulate})
     DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
                                                     save_positions = (false,false))
 end
