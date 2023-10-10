@@ -130,7 +130,7 @@ function (o::IntermediateResults)(integrator)
 
         publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
-    else if o.last_callback + o.every ≤ Dates.now() && every_iteration == false
+    elseif o.last_callback + o.every ≤ Dates.now() && every_iteration == false
         o.last_callback = Dates.now()
         (; iter, f, t, u, p) = integrator
 
