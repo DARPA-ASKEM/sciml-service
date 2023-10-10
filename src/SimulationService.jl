@@ -103,14 +103,14 @@ function start!(; host=HOST[], port=PORT[], kw...)
     JobSchedulers.set_scheduler(max_cpu=JobSchedulers.SCHEDULER_MAX_CPU, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
 
-    Oxygen.@get     "/"                     health
+    Oxygen.@get     "/health"               health
     Oxygen.@get     "/status/{id}"          job_status
-    Oxygen.@post    "/kill/{id}"        job_kill
+    Oxygen.@post    "/kill/{id}"            job_kill
 
     Oxygen.@post    "/simulate"             req -> operation(req, "simulate")
     Oxygen.@post    "/calibrate"            req -> operation(req, "calibrate")
     Oxygen.@post    "/ensemble-simulate"    req -> operation(req, "ensemble-simulate")
-    Oxygen.@post    "/ensemble-calibrate"    req -> operation(req, "ensemble-calibrate")
+    Oxygen.@post    "/ensemble-calibrate"   req -> operation(req, "ensemble-calibrate")
 
     # For /docs
     Oxygen.mergeschema(openapi_spec[])
@@ -189,12 +189,22 @@ function job_kill(::HTTP.Request, id::String)
 end
 
 #-----------------------------------------------------------------------------# health: GET /
-health(::HTTP.Request) = (
-    status = "ok",
-    RABBITMQ_ENABLED = RABBITMQ_ENABLED[],
-    RABBITMQ_ROUTE = RABBITMQ_ROUTE[],
-    ENABLE_TDS = ENABLE_TDS[]
-)
+function health(::HTTP.Request)
+    version_filepath = normpath(joinpath(@__FILE__,"../../.version"))
+    version =
+        if ispath(version_filepath)
+            version_filepath |> strip ∘ String ∘ read ∘ open
+        else
+            "unknown"
+        end
+    (
+        status = "ok",
+        git_sha = version,
+        RABBITMQ_ENABLED = RABBITMQ_ENABLED[],
+        RABBITMQ_ROUTE = RABBITMQ_ROUTE[],
+        ENABLE_TDS = ENABLE_TDS[]
+    )
+end
 
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
