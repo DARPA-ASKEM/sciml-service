@@ -1,14 +1,14 @@
 FROM julia:1.9
-WORKDIR /simulation-service
+WORKDIR /sciml-service
 
 # Install SimulationService.jl
-COPY Project.toml /simulation-service/
-COPY Manifest.toml /simulation-service/
-COPY src/ /simulation-service/src/
-COPY examples/ /simulation-service/examples/
+COPY Project.toml /sciml-service/
+COPY Manifest.toml /sciml-service/
+COPY src/ /sciml-service/src/
+COPY examples/ /sciml-service/examples/
 ENV JULIA_PROJECT=.
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 
-# Launch simulation-service
+# Launch sciml-service
 EXPOSE 8080
 CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.start!(); while true sleep(10000) end" ]
