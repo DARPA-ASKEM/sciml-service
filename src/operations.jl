@@ -115,7 +115,7 @@ mutable struct IntermediateResults
     last_callback::Dates.DateTime  # Track the last time the callback was called
     every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
     id::String
-    every_iteration::Bool
+    every_iteration::Bool # If the results are reported for every step of intergration
     function IntermediateResults(id::String; every=Dates.Second(5), every_iteration = false)
         new(typemin(Dates.DateTime), every, id, every_iteration)
     end
@@ -153,7 +153,7 @@ end
 
 # callback for Simulate requests
 function get_callback(o::Simulate)
-    DiscreteCallback((args...) -> true, IntermediateResults(o.id),
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
                                                     save_positions = (false,false))
 end
 
