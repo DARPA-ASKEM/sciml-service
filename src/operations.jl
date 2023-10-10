@@ -223,7 +223,7 @@ function solve(o::Calibrate; callback)
 
         probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
         enprob = EasyModelAnalysis.EnsembleProblem(probs)
-        ensol = solve(enprob; saveat = 1, solve_kws = (callback = callback,))
+        ensol = solve(enprob; saveat = 1, solve_kws = (callback = callback, kwargshandle = :KeywordArgSilent))
         outs = map(1:length(probs)) do i
             mats = stack(ensol[i][statenames])'
             headers = string.("ensemble",i,"_", statenames)
@@ -242,7 +242,7 @@ function solve(o::Calibrate; callback)
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
         else
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
+            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback, kwargshandle = :KeywordArgSilent))
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
@@ -357,11 +357,11 @@ end
 
 function get_callback(o::OperationRequest)
     optype = route2operation_type[o.route]
-    get_callback(optype)
+    get_callback(o,optype)
 end
 
 # callback for Calibrate requests
-function get_callback(::Type{Calibrate})
+function get_callback(o::OperationRequest, ::Type{Calibrate})
     function (p,lossval,ode_sol)  
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
         state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
@@ -370,7 +370,7 @@ function get_callback(::Type{Calibrate})
 end
 
 # callback for Simulate requests
-function get_callback(::Type{Simulate})
+function get_callback(o::OperationRequest, ::Type{Simulate})
     DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
                                                     save_positions = (false,false))
 end
