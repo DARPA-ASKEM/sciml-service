@@ -223,7 +223,7 @@ function solve(o::Calibrate; callback)
 
         probs = [EasyModelAnalysis.remake(prob, p = Pair.(first.(p_posterior), getindex.(pvalues,i))) for i in 1:length(p_posterior[1][2])]
         enprob = EasyModelAnalysis.EnsembleProblem(probs)
-        ensol = solve(enprob; saveat = 1, solve_kws = (callback = callback, kwargshandle = :KeywordArgSilent))
+        ensol = solve(enprob; saveat = 1)
         outs = map(1:length(probs)) do i
             mats = stack(ensol[i][statenames])'
             headers = string.("ensemble",i,"_", statenames)
@@ -242,7 +242,7 @@ function solve(o::Calibrate; callback)
             fit = EasyModelAnalysis.datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
         else
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback, kwargshandle = :KeywordArgSilent))
+            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
