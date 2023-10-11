@@ -21,5 +21,5 @@ jobs:
         with:
           project-url: https://github.com/orgs/DARPA-ASKEM/projects/5
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          labeled: integration
+          labeled: askem-integration
           label-operator: OR
