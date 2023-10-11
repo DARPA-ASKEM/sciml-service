@@ -215,8 +215,8 @@ end
 #-----------------------------------------------------------------------------# test routes
 @testset "Server Routes" begin
     SimulationService.with_server() do url
-        @testset "/" begin
-            res = HTTP.get(url)
+        @testset "/health" begin
+            res = HTTP.get("$url/health")
             @test res.status == 200
             @test JSON3.read(res.body).status == "ok"
         end
