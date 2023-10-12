@@ -208,6 +208,11 @@ Base.@kwdef mutable struct OperationRequest
     result::Any = nothing                                   # store result of job
 end
 
+function get_callback(o::OperationRequest)
+    optype = route2operation_type[o.route]
+    get_callback(o,optype)
+end
+
 function Base.show(io::IO, o::OperationRequest)
     println(io, "OperationRequest(id=$(repr(o.id)), route=$(repr(o.route)))")
 end

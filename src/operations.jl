@@ -115,22 +115,13 @@ mutable struct IntermediateResults
     last_callback::Dates.DateTime  # Track the last time the callback was called
     every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
     id::String
-    every_iteration::Bool # If the results are reported for every step of intergration
-    function IntermediateResults(id::String; every=Dates.Second(5), every_iteration = false)
+    function IntermediateResults(id::String; every=Dates.Second(0))
         new(typemin(Dates.DateTime), every, id, every_iteration)
     end
 end
 
 function (o::IntermediateResults)(integrator)
-    if o.every_iteration == true
-        (; iter, f, t, u, p) = integrator
-
-        state_dict = Dict(states(f.sys) .=> u)
-        param_dict = Dict(parameters(f.sys) .=> p)
-
-        publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
-            retcode=SciMLBase.check_error(integrator))
-    elseif o.last_callback + o.every ≤ Dates.now() && every_iteration == false
+    if o.last_callback + o.every ≤ Dates.now()
         o.last_callback = Dates.now()
         (; iter, f, t, u, p) = integrator
 
@@ -142,9 +133,6 @@ function (o::IntermediateResults)(integrator)
     end
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
-
-#get_callback(o::OperationRequest) = DiscreteCallback((args...) -> true, IntermediateResults(o.id),
-#                                                      save_positions = (false,false))
 
 #----------------------------------------------------------------------# dataframe_with_observables
 function dataframe_with_observables(sol::ODESolution)
@@ -169,9 +157,15 @@ function Simulate(o::OperationRequest)
     Simulate(sys, o.timespan)
 end
 
+function get_callback(o::OperationRequest, ::Type{Simulate})
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = Dates.Seconds(0)),
+                                                    save_positions = (false,false))
+end
+
+# callback for Simulate requests
 function solve(op::Simulate; callback)
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback = callback)
+    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback = nothing)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
@@ -186,6 +180,15 @@ struct Calibrate <: Operation
     num_iterations::Int
     calibrate_method::String
     ode_method::Any
+end
+
+# callback for Calibrate requests
+function get_callback(o::OperationRequest, ::Type{Calibrate})
+    function (p,lossval,ode_sol)  
+        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
+        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
+        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
+    end
 end
 
 function Calibrate(o::OperationRequest)
@@ -207,12 +210,11 @@ function Calibrate(o::OperationRequest)
     Calibrate(sys, o.timespan, priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 end
 
-# Jadon Clugston: maybe we want separate callbacks for the optimizer and the ode solve?
 function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
 
-    # todo: fix this when ensembles are fixed
+    # bayesian datafit 
     if o.calibrate_method == "bayesian"
         p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
                                                         nchains = 2,
@@ -236,6 +238,8 @@ function solve(o::Calibrate; callback)
         rename!(dfparam, Symbol.(first.(p_posterior)))
 
         dfsim, dfparam
+    
+    # local / global datafit
     elseif o.calibrate_method == "local" || o.calibrate_method == "global"
         if o.calibrate_method == "local"
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
@@ -354,27 +358,6 @@ end
 
 #-----------------------------------------------------------------------------# All operations
 # :simulate => Simulate, etc.
-
-function get_callback(o::OperationRequest)
-    optype = route2operation_type[o.route]
-    get_callback(o,optype)
-end
-
-# callback for Calibrate requests
-function get_callback(o::OperationRequest, ::Type{Calibrate})
-    function (p,lossval,ode_sol)  
-        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
-        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
-        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
-    end
-end
-
-# callback for Simulate requests
-function get_callback(o::OperationRequest, ::Type{Simulate})
-    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every_iteration = true),
-                                                    save_positions = (false,false))
-end
-
 
 const route2operation_type = Dict(
     "simulate" => Simulate,
