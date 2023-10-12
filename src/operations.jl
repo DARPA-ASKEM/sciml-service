@@ -158,7 +158,7 @@ function Simulate(o::OperationRequest)
 end
 
 function get_callback(o::OperationRequest, ::Type{Simulate})
-    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = Dates.Seconds(0)),
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = Dates.Second(0)),
                                                     save_positions = (false,false))
 end
 
