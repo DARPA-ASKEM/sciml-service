@@ -116,7 +116,7 @@ mutable struct IntermediateResults
     every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
     id::String
     function IntermediateResults(id::String; every=Dates.Second(0))
-        new(typemin(Dates.DateTime), every, id, every_iteration)
+        new(typemin(Dates.DateTime), every, id)
     end
 end
 
