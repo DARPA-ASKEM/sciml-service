@@ -58,6 +58,9 @@ const RABBITMQ_ROUTE = Ref{String}()
 const RABBITMQ_HOST = Ref{String}()
 const RABBITMQ_PORT = Ref{Int}()
 
+# I don't like this, but needed for now to count optimization iterations 
+opt_callback_counter = Ref{Int}()
+
 function __init__()
     if Threads.nthreads() == 1
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."

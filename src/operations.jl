@@ -187,7 +187,9 @@ function get_callback(o::OperationRequest, ::Type{Calibrate})
     function (p,lossval,ode_sol)  
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
         state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
-        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
+        opt_callback_counter[] = opt_callback_counter[] + 1
+        publish_to_rabbitmq(; loss = lossval, sol_data = state_dict, params = param_dict, id=o.id, iteration = opt_callback_counter[])
+        return false
     end
 end
 
@@ -214,6 +216,7 @@ function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
 
+    opt_iter_counter[] = 0
     # bayesian datafit 
     if o.calibrate_method == "bayesian"
         p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
