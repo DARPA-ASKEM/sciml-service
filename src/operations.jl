@@ -216,7 +216,7 @@ function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
     statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
 
-    opt_iter_counter[] = 0
+    opt_callback_counter[] = 0
     # bayesian datafit 
     if o.calibrate_method == "bayesian"
         p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
