@@ -134,6 +134,8 @@ function (o::IntermediateResults)(integrator)
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
+
+
 #----------------------------------------------------------------------# dataframe_with_observables
 function dataframe_with_observables(sol::ODESolution)
     sys = sol.prob.f.sys
@@ -293,8 +295,11 @@ function solve(o::Ensemble{Simulate}; callback)
     probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
     enprob = EMA.EnsembleProblem(probs)
     sol = solve(enprob; saveat = 1, callback);
-    weights = [0.2, 0.5, 0.3]
-    data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in error("What goes here?")]
+
+    #weights = o.weights
+    #sol_maps = o.solution_mappings
+
+    #data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in sol_maps]
 end
 
 
