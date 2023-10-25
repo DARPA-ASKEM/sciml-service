@@ -299,7 +299,7 @@ function solve(o::Ensemble{Simulate}; callback)
     sol = solve(enprob; saveat = 1, callback);
 
     weights = o.weights
-    sol_maps = o.solution_mappings
+    sol_maps = o.sol_mappings
 
     sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in Symbol.(values(sol_maps))]
 
