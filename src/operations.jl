@@ -295,7 +295,7 @@ end
 function solve(o::Ensemble{Simulate}; callback)
     systems = [sim.sys for sim in o.operations]
     probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
-    enprob = EMA.EnsembleProblem(probs)
+    enprob = EasyModelAnalysis.EnsembleProblem(probs)
     sol = solve(enprob; saveat = 1, callback);
 
     weights = o.weights
