@@ -42,4 +42,4 @@ json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/
         state_data = [dat.second for dat in data]
         dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
 
-        DataFrame(dataframable_pairs...)
+        DataFrame(:t => sol[1].t ,dataframable_pairs...)

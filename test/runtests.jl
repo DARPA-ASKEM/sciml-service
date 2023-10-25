@@ -183,6 +183,7 @@ end
         o.timespan = (0, 30)
         en = Ensemble{Simulate}(o)
 
+        sim_sol = solve(en, callback = nothing)
         # create ensemble-calibrate
         # o = OperationRequest()
         # o.route = "ensemble-calibrate"
