@@ -183,7 +183,11 @@ end
         o.timespan = (0, 30)
         en = Ensemble{Simulate}(o)
 
-        sim_sol = solve(en, callback = nothing)
+        sim_sol = SimulationService.solve(en, callback = nothing)
+
+        # bad test, need something better
+        @test first(names(sim_sol)) == "t"
+
         # create ensemble-calibrate
         # o = OperationRequest()
         # o.route = "ensemble-calibrate"
