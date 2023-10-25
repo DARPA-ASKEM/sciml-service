@@ -25,7 +25,7 @@ json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/
 
         systems = [sim.sys for sim in en.operations]
         probs = EasyModelAnalysis.ODEProblem.(systems, Ref([]), Ref(en.operations[1].timespan))
-        enprob = EasyModelAnalysis.EnsembleProblem(probs)
+        enprob = EasyModelAnalysis.EnsembleProblem(psrobs)
         sol = solve(enprob; saveat = 1, callback = nothing);
 
         sol_maps = en.sol_mappings[1]
@@ -34,8 +34,12 @@ json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/
         states(systems[1])
         sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in sol_maps]
 
-        data = [x => vec(sum(stack(en.weights .* sol[:,x]), dims = 2)) for x in sol_map_states]
+        data = [x => vec(sum(stack(en.weights .* [indsol[x] for indsol in sol]), dims = 2)) for x in sol_map_states]
 
-        sol[1]
+        data
 
-        first(values(states(systems[1])[1].metadata))
+        state_symbs = [Symbol(pair.first) for pair in data]
+        state_data = [dat.second for dat in data]
+        dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
+
+        DataFrame(dataframable_pairs...)

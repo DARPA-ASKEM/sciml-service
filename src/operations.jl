@@ -296,10 +296,17 @@ function solve(o::Ensemble{Simulate}; callback)
     enprob = EMA.EnsembleProblem(probs)
     sol = solve(enprob; saveat = 1, callback);
 
-    #weights = o.weights
-    #sol_maps = o.solution_mappings
+    weights = o.weights
+    sol_maps = o.solution_mappings
 
-    #data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in sol_maps]
+    sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in Symbol.(values(sol_maps))]
+
+    data = [x => vec(sum(stack(en.weights .* [indsol[x] for indsol in sol]), dims = 2)) for x in sol_map_states]
+
+    state_symbs = [Symbol(pair.first) for pair in data]
+    state_data = [dat.second for dat in data]
+    dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
+    DataFrame(dataframable_pairs...)
 end
 
 

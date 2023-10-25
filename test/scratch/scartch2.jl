@@ -57,3 +57,15 @@ enprob = EnsembleProblem(probs)
 sol = solve(enprob; saveat = 1);
 
 sol[:,S]
+
+[indsol[S] for indsol in sol]
+
+weights = [0.2, 0.5, 0.3]
+data = [
+    S => vec(sum(stack(weights .* [indsol[S] for indsol in sol]), dims = 2)),
+    I => vec(sum(stack(weights .* [indsol[I] for indsol in sol]), dims = 2)),
+    R => vec(sum(stack(weights .* [indsol[R] for indsol in sol]), dims = 2)),
+]
+
+plot(sol; idxs = S)
+scatter!(data[1][2])
