@@ -79,7 +79,7 @@ function __init__()
     RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
     RABBITMQ_HOST[] = get(ENV, "SIMSERVICE_RABBITMQ_HOST", "localhost")
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
-    RABBITMQ_SSL[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true"
+    RABBITMQ_SSL[] = get(ENV, "SIMSERVICE_RABBITMQ_SSL", "false") == "true"
 
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
