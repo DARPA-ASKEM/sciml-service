@@ -57,6 +57,7 @@ const RABBITMQ_PASSWORD = Ref{String}()
 const RABBITMQ_ROUTE = Ref{String}()
 const RABBITMQ_HOST = Ref{String}()
 const RABBITMQ_PORT = Ref{Int}()
+const RABBITMQ_SSL = Ref{Bool}()
 
 function __init__()
     if Threads.nthreads() == 1
@@ -78,12 +79,19 @@ function __init__()
     RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
     RABBITMQ_HOST[] = get(ENV, "SIMSERVICE_RABBITMQ_HOST", "localhost")
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
+    RABBITMQ_SSL[] = get(ENV, "SIMSERVICE_RABBITMQ_SSL", "false") == "true"
 
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
             ("MECHANISM" => "AMQPLAIN", "LOGIN" => RABBITMQ_LOGIN[], "PASSWORD" => RABBITMQ_PASSWORD[])
         )
-        conn = AMQPClient.connection(; virtualhost="/", host=RABBITMQ_HOST[], port=RABBITMQ_PORT[], auth_params)
+
+        amqps = nothing
+        if RABBITMQ_SSL[]
+            amqps = AMQPClient.amqps_configure()
+        end
+
+        conn = AMQPClient.connection(; virtualhost="/", host=RABBITMQ_HOST[], port=RABBITMQ_PORT[], auth_params, amqps)
 
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
         AMQPClient.queue_declare(rabbitmq_channel[], RABBITMQ_ROUTE[]; durable=true)
