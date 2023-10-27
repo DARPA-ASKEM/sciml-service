@@ -295,13 +295,25 @@ function Ensemble{T}(o::OperationRequest) where {T}
     Ensemble{T}(model_ids, operations, weights, sol_mappings)
 end
 
+# Solves multiple ODEs, performs a weighted sum
+# of the solutions.
 function solve(o::Ensemble{Simulate}; callback)
     systems = [sim.sys for sim in o.operations]
     probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
-    enprob = EMA.EnsembleProblem(probs)
+    enprob = EasyModelAnalysis.EnsembleProblem(probs)
     sol = solve(enprob; saveat = 1, callback);
-    weights = [0.2, 0.5, 0.3]
-    data = [x => vec(sum(stack(o.weights .* sol[:,x]), dims = 2)) for x in error("What goes here?")]
+
+    weights = o.weights
+    sol_maps = o.sol_mappings
+
+    sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in Symbol.(values(sol_maps))]
+
+    data = [x => vec(sum(stack(weights .* [ind_sol[x] for ind_sol in sol]), dims = 2)) for x in sol_map_states]
+
+    state_symbs = [Symbol(pair.first) for pair in data]
+    state_data = [dat.second for dat in data]
+    dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
+    DataFrame(:t => sol[1].t, dataframable_pairs...)
 end
 
 
