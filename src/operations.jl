@@ -270,7 +270,7 @@ function solve(o::Calibrate; callback)
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
-        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1)#, callback = callback)
+        sol = EasyModelAnalysis.DifferentialEquations.solve(newprob; saveat = 1)
         dfsim = DataFrame(hcat(sol.t,stack(sol[statenames])'), :auto)
         rename!(dfsim, ["timestamp";string.(statenames)])
 
@@ -291,21 +291,23 @@ struct Ensemble{T<:Operation} <: Operation
     operations::Vector{T}
     weights::Vector{Float64}
     sol_mappings::Vector{JSON3.Object}
+    df::Union{Nothing, DataFrame} # for calibrate only
 end
 
 function Ensemble{T}(o::OperationRequest) where {T}
     model_ids = map(x -> x.id, o.obj.model_configs)
     weights = map(x -> x.weight, o.obj.model_configs)
     sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
+    df = o.df # we get one set of data for ensemble calibration
     operations = map(o.models) do model
         temp = OperationRequest()
-        temp.df = o.df
+        temp.df = df
         temp.timespan = o.timespan
         temp.model = model
         temp.obj = o.obj
         T(temp)
     end
-    Ensemble{T}(model_ids, operations, weights, sol_mappings)
+    Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
 end
 
 # Solves multiple ODEs, performs a weighted sum
@@ -317,40 +319,33 @@ function solve(o::Ensemble{Simulate}; callback)
     sol = solve(enprob; saveat = 1, callback);
 
     weights = o.weights
-    sol_maps = o.sol_mappings
+    sol_maps = o.sol_mappings[1]
 
     sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in Symbol.(values(sol_maps))]
 
     data = [x => vec(sum(stack(weights .* [ind_sol[x] for ind_sol in sol]), dims = 2)) for x in sol_map_states]
 
-    state_symbs = [Symbol(pair.first) for pair in data]
+    state_symbs = [first(values(pair.first.metadata))[2] for pair in data]
     state_data = [dat.second for dat in data]
     dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
-    DataFrame(:t => sol[1].t, dataframable_pairs...)
+    DataFrame(:timestamp => sol[1].t, dataframable_pairs...)
 end
 
 
 function solve(o::Ensemble{Calibrate}; callback)
-    probs = [ODEProblem(cal.sys, [], o.timespan) for cal in o.operations]
-    error("TODO")
+    systems = [sim.sys for sim in o.operations]
+    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
 
+    enprob = EasyModelAnalysis.EnsembleProblem(probs)
+    sol = solve(enprob; saveat = 1, callback);
+    
+    data = o.df 
 
-    # probs = [ODEProblem(s, [], o.timespan) for s in sys]
-    # ps = [[β => Uniform(0.01, 10.0), γ => Uniform(0.01, 10.0)] for i in 1:3]
-    # datas = [data_train,data_train,data_train]
-    # enprobs = EMA.bayesian_ensemble(probs, ps, datas)
-    # ensem_weights = EMA.ensemble_weights(sol, data_ensem)
+    sol_maps_for_cal = Symbol.(names(data))
+    datacal_pairs = [state => data[!,first(values(state.metadata))[2]] for state in states(systems[1]) if first(values(state.metadata))[2] in sol_maps_for_cal]
 
-    # forecast_probs = [EMA.remake(enprobs.prob[i]; tspan = (t_train[1],t_forecast[end])) for i in 1:length(enprobs.prob)]
-    # fit_enprob = EMA.EnsembleProblem(forecast_probs)
-    # sol = solve(fit_enprob; saveat = o.t_forecast, callback);
-
-    # soldata = DataFrame([sol.t; Matrix(sol[names])'])
-
-    # Requires https://github.com/SciML/SciMLBase.jl/pull/467
-    # weighted_ensem = WeightedEnsembleSolution(sol, ensem_weights; quantiles = o.quantiles)
-    # df = DataFrame(weighted_ensem)
-    # df, soldata
+    weights  = EasyModelAnalysis.ensemble_weights(sol,datacal_pairs)
+    DataFrame("Weights" => weights)
 end
 
 
