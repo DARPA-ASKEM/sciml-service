@@ -1,4 +1,3 @@
-
 using CSV
 using DataFrames
 using Dates
@@ -20,6 +19,8 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 #-----------------------------------------------------------------------# JSON payloads for testing
 # route => payload
+
+
 simulate_payloads = JSON3.write.([
     (local_model_file=here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
 ])
@@ -32,11 +33,12 @@ calibrate_payloads = JSON3.write.([
             local_model_file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"),
             engine, timespan, extra
         )
-
     end
 ])
 
-ensemble_payloads = JSON3.write.([])
+ensemble_simulate_payloads = JSON3.write.([])
+
+ensemble_calibrate_payloads = 
 
 #-----------------------------------------------------------------------------# utils
 @testset "utils" begin
@@ -159,40 +161,49 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
-    @testset "Ensemble" begin
-        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        amr = SimulationService.get_json(json_url)
-
+    @testset "Ensembles" begin
+        amrfiles = [here("examples", "sir_calibrate", "sir1.json"),
+        here("examples", "sir_calibrate", "sir2.json"),
+        here("examples", "sir_calibrate", "sir3.json"),
+        here("examples", "sir_calibrate", "sir4.json")]
+        
+        amrs = JSON3.read.(read.(amrfiles))
+        
         obj = (
             model_configs = map(1:4) do i
                 (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
-            models = [amr for _ in 1:4],
-            timespan = (start = 0, var"end" = 40),
+            models = amrs,
+            ztimespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
 
         body = JSON3.write(obj)
+        
 
         # create ensemble-simulte
         o = OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
-        o.models = [amr for _ in 1:4]
-        o.timespan = (0, 30)
+        o.models = amrs
+        o.timespan = (0,40)
         en = Ensemble{Simulate}(o)
 
-        sim_sol = SimulationService.solve(en, callback = nothing)
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
 
         # bad test, need something better
-        @test first(names(sim_sol)) == "t"
-
+        @test names(sim_en_sol) == ["timestamp","S","I","R"]
         # create ensemble-calibrate
-        # o = OperationRequest()
-        # o.route = "ensemble-calibrate"
-        # json = JSON3.read(here("examples", "sir_calibrate", "sir_calibrate_request"), Dict)
-        # delete!(json, "modelConfigId")
+        o = OperationRequest()
+        o.route = "ensemble-calibrate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrs
+        o.timespan = (0,40)
+        o.df = sim_en_sol
+        en_cal = Ensemble{Calibrate}(o)
+        cal_sol = SimulationService.solve(en_cal,callback = nothing)
+        @test cal_sol[!,:Weights] ≈ [0.1, 0.2, 0.3, 0.4]
     end
 
     @testset "Real Calibrate Payload" begin
@@ -263,7 +274,7 @@ end
             end
         end
 
-        @testset "/ensemble" begin
+        @testset "/ensemble-simulate" begin
             @test true # TODO
         end
     end
