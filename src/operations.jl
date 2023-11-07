@@ -110,7 +110,7 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
 end
 
 #--------------------------------------------------------------------# IntermediateResults callback
-# Publish intermediate results to RabbitMQ with at least `every` seconds in between callbacks
+# Publish intermediate results to RabbitMQ with at least `every` iterations in between callbacks
 mutable struct IntermediateResults
     last_callback::Int # Track the last iteration the callback was called
     every::Int  # Callback frequency
@@ -169,7 +169,7 @@ function Simulate(o::OperationRequest)
 end
 
 function get_callback(o::OperationRequest, ::Type{Simulate})
-    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = Dates.Second(0)))
+    DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = 10))
 end
 
 # callback for Simulate requests
@@ -194,7 +194,7 @@ end
 
 # callback for Calibrate requests
 function get_callback(o::OperationRequest, ::Type{Calibrate})
-    IntermediateResults(o.id,every = Dates.Second(0))
+    IntermediateResults(o.id,every = 10)
 end
 
 function Calibrate(o::OperationRequest)
