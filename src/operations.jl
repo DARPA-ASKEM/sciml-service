@@ -117,7 +117,7 @@ mutable struct IntermediateResults
     id::String
     iter::Int # Track how many iterations of the calibration have happened
     function IntermediateResults(id::String; every = 10)
-        new(typemin(Dates.DateTime), every, id, 0)
+        new(0, every, id, 0)
     end
 end
 
@@ -210,7 +210,7 @@ function Calibrate(o::OperationRequest)
     if :extra in keys(o.obj)
         extrakeys = keys(o.obj.extra)
         :num_chains in extrakeys && (num_chains = o.obj.extra.num_chains)
-        :num_iterations in extrakeys && (num_iterations = o.obj.extra.num_iterations)
+        :num_iterations in extrakeys && (num_iterations = o.obj.extra.num_iterations) # only for bayesian?
         :calibrate_method in extrakeys && (calibrate_method = o.obj.extra.calibrate_method)
     end
     Calibrate(sys, o.timespan, priors, data, num_chains, num_iterations, calibrate_method, ode_method)
@@ -223,8 +223,8 @@ function solve(o::Calibrate; callback)
     # bayesian datafit 
     if o.calibrate_method == "bayesian"
         p_posterior = EasyModelAnalysis.bayesian_datafit(prob, o.priors, o.data;
-                                                        nchains = 2,
-                                                        niter = 100,
+                                                        nchains = o.num_chains,
+                                                        niter = o.num_iterations,
                                                         mcmcensemble = SimulationService.EasyModelAnalysis.Turing.MCMCSerial())
 
         pvalues = last.(p_posterior)
