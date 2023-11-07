@@ -112,20 +112,19 @@ end
 #--------------------------------------------------------------------# IntermediateResults callback
 # Publish intermediate results to RabbitMQ with at least `every` seconds in between callbacks
 mutable struct IntermediateResults
-    last_callback::Dates.DateTime  # Track the last time the callback was called
-    every::Dates.TimePeriod  # Callback frequency e.g. `Dates.Second(5)`
+    last_callback::Int # Track the last iteration the callback was called
+    every::Int  # Callback frequency
     id::String
     iter::Int # Track how many iterations of the calibration have happened
-    function IntermediateResults(id::String; every=Dates.Second(0))
+    function IntermediateResults(id::String; every = 10)
         new(typemin(Dates.DateTime), every, id, 0)
     end
 end
 
 function (o::IntermediateResults)(integrator)
-    if o.last_callback + o.every ≤ Dates.now()
-        o.last_callback = Dates.now()
-        (; iter, f, t, u, p) = integrator
-
+    (; iter, f, t, u, p) = integrator
+    if o.last_callback + o.every == iter
+        o.last_callback = iter
         state_dict = Dict(states(f.sys) .=> u)
         param_dict = Dict(parameters(f.sys) .=> p)
 
