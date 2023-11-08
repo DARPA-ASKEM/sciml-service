@@ -186,14 +186,6 @@ function get_callback(o::OperationRequest, ::Type{Simulate})
     DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = 10))
 end
 
-function get_callback(o::OperationRequest, ::Type{Ensemble{Simulate}})
-    nothing
-end
-
-function get_callback(o::OperationRequest, ::Type{Ensemble{Calibrate}})
-    nothing
-end
-
 # callback for Simulate requests
 function solve(op::Simulate; callback)
     prob = ODEProblem(op.sys, [], op.timespan)
@@ -316,6 +308,14 @@ function Ensemble{T}(o::OperationRequest) where {T}
         T(temp)
     end
     Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
+end
+
+function get_callback(o::OperationRequest, ::Type{Ensemble{Simulate}})
+    nothing
+end
+
+function get_callback(o::OperationRequest, ::Type{Ensemble{Calibrate}})
+    nothing
 end
 
 # Solves multiple ODEs, performs a weighted sum
