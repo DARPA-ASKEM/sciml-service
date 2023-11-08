@@ -6,8 +6,14 @@ ENV JULIA_PROJECT=.
 COPY Project.toml /sciml-service/
 COPY Manifest.toml /sciml-service/
 RUN julia -e 'using Pkg; Pkg.instantiate();'
+RUN julia -e 'using Pkg; Pkg.build("PackageCompiler")'
 COPY src/ /sciml-service/src/
 COPY examples/ /sciml-service/examples/
+RUN apt update && \
+    apt install -y clang && \
+    apt clean -y
+COPY docker/docker_precompile.jl precompile_execution.jl
+RUN julia -e 'using PackageCompiler; create_app("/sciml-service", "/apps"; incremental=true, include_lazy_artifacts=true, precompile_execution_file="precompile_execution.jl");'
 
 COPY .git/HEAD .git/HEAD
 COPY .git/refs .git/refs
@@ -16,4 +22,4 @@ RUN rm -fr .git
 
 # Launch sciml-service
 EXPOSE 8080
-CMD [ "julia", "--threads",  "4", "-e", "using SimulationService; SimulationService.start!(); while true sleep(10000) end" ]
+CMD [ "/apps/bin/SimulationService", "--julia-args", "--threads=4" ]
