@@ -36,8 +36,33 @@ calibrate_payloads = JSON3.write.([
     end
 ])
 
-ensemble_simulate_payloads = JSON3.write.([])
+        
+simulate_ensemble_payloads = JSON3.write.([(
+            model_configs = map(1:4) do i
+                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            end,
+            local_model_files = JSON3.read.(read.([here("examples", "sir_calibrate", "sir1.json"),
+            here("examples", "sir_calibrate", "sir2.json"),
+            here("examples", "sir_calibrate", "sir3.json"),
+            here("examples", "sir_calibrate", "sir4.json")])),
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40))]
+        )
 
+calibrate_ensemble_payloads = JSON3.write.([(
+            model_configs = map(1:4) do i
+                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            end,
+            local_model_files = JSON3.read.(read.([here("examples", "sir_calibrate", "sir1.json"),
+            here("examples", "sir_calibrate", "sir2.json"),
+            here("examples", "sir_calibrate", "sir3.json"),
+            here("examples", "sir_calibrate", "sir4.json")])),
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            local_csv_file = here("examples", "sir_calibrate", "sir_ensemble_data.csv"),
+            extra = (; num_samples = 40))]
+        )
 
 #-----------------------------------------------------------------------------# utils
 @testset "utils" begin
@@ -160,7 +185,8 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
-    @testset "Ensembles" begin
+
+    @testset "ensemble-simulate" begin
         amrfiles = [here("examples", "sir_calibrate", "sir1.json"),
         here("examples", "sir_calibrate", "sir2.json"),
         here("examples", "sir_calibrate", "sir3.json"),
@@ -173,7 +199,7 @@ end
                 (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
             models = amrs,
-            ztimespan = (start = 0, var"end" = 40),
+            timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
@@ -193,16 +219,21 @@ end
 
         # bad test, need something better
         @test names(sim_en_sol) == ["timestamp","S","I","R"]
+
+    end
+
+    @testset "ensemble-calibrate" begin
         # create ensemble-calibrate
         o = OperationRequest()
         o.route = "ensemble-calibrate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        o.df = sim_en_sol
+        o.df = df = CSV.read(here("examples", "sir_calibrate", "sir_ensemble_data.csv"), DataFrame)
         en_cal = Ensemble{Calibrate}(o)
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
         @test cal_sol[!,:Weights] ≈ [0.1, 0.2, 0.3, 0.4]
+
     end
 
     @testset "Real Calibrate Payload" begin
@@ -274,7 +305,20 @@ end
         end
 
         @testset "/ensemble-simulate" begin
-            @test true # TODO
+            for body in simulate_ensemble_payloads
+                res = HTTP.post("$url/ensemble-simulate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id)
+            end
+        end
+        @testset "/ensemble-calibrate" begin
+            for body in calibrate_ensemble_payloads
+                res = HTTP.post("$url/ensemble-calibrate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id)
+            end
         end
     end
 end
