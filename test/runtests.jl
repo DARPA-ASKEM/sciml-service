@@ -223,6 +223,22 @@ end
     end
 
     @testset "ensemble-calibrate" begin
+        amrfiles = [here("examples", "sir_calibrate", "sir1.json"),
+        here("examples", "sir_calibrate", "sir2.json"),
+        here("examples", "sir_calibrate", "sir3.json"),
+        here("examples", "sir_calibrate", "sir4.json")]
+        
+        amrs = JSON3.read.(read.(amrfiles))
+        obj = (
+            model_configs = map(1:4) do i
+                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            end,
+            models = amrs,
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
+
         # create ensemble-calibrate
         o = OperationRequest()
         o.route = "ensemble-calibrate"
