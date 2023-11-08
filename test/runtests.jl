@@ -38,7 +38,6 @@ calibrate_payloads = JSON3.write.([
 
 ensemble_simulate_payloads = JSON3.write.([])
 
-ensemble_calibrate_payloads = 
 
 #-----------------------------------------------------------------------------# utils
 @testset "utils" begin
