@@ -138,9 +138,9 @@ end
 function (o::IntermediateResults)(p,lossval, ode_sol, ts)
     if o.last_callback + o.every ≤ Dates.now()
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
-        state_dict = Dict([state => ode_sol(first.(ts))[state] for state in states(ode_sol.prob.f.sys)])
+        state_dict = Dict([state => ode_sol(first(ts))[state] for state in states(ode_sol.prob.f.sys)])
         o.iter = o.iter + 1
-        publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, sol_t = sol.t, params = param_dict, id=o.id)
+        publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, timesteps = first(ts), params = param_dict, id=o.id)
     end
 
     return false
@@ -391,7 +391,7 @@ function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
     timeseries = last.(last.(data))
     datakeys = first.(data)
 
-    prob = remake(prob, tspan = (prob.tspan[1], lastt), p = p)
+    prob = DifferentialEquations.remake(prob, tspan = (prob.tspan[1], lastt), p = p)
     sol = solve(prob)
     tot_loss = 0.0
     for i in 1:length(ts)
