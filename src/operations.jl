@@ -140,7 +140,7 @@ function (o::IntermediateResults)(p,lossval,ode_sol)
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
         state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
         o.iter = o.iter + 1
-        publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, params = param_dict, id=o.id)
+        publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, sol_t = sol.t, params = param_dict, id=o.id)
     end
 
     return false
@@ -383,3 +383,19 @@ const route2operation_type = Dict(
     "ensemble-simulate" => Ensemble{Simulate},
     "ensemble-calibrate" => Ensemble{Calibrate}
 )
+
+function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
+    p = Pair.(pkeys, pvals)
+    ts = first.(last.(data))
+    lastt = maximum(last.(ts))
+    timeseries = last.(last.(data))
+    datakeys = first.(data)
+
+    prob = remake(prob, tspan = (prob.tspan[1], lastt), p = p)
+    sol = solve(prob)
+    tot_loss = 0.0
+    for i in 1:length(ts)
+        tot_loss += sum((sol(ts[i]; idxs = datakeys[i]) .- timeseries[i]) .^ 2)
+    end
+    return tot_loss, sol
+end
