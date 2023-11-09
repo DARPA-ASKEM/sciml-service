@@ -128,17 +128,17 @@ function (o::IntermediateResults)(integrator)
         state_dict = Dict(states(f.sys) .=> u)
         param_dict = Dict(parameters(f.sys) .=> p)
 
-        publish_to_rabbitmq(; iter=iter, time=t, state=state_dict, params = param_dict, id=o.id,
+        publish_to_rabbitmq(; iter=iter, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
     EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
 end
 
 # Intermediate results functor for calibrate
-function (o::IntermediateResults)(p,lossval,ode_sol)
+function (o::IntermediateResults)(p,lossval, ode_sol, ts)
     if o.last_callback + o.every ≤ Dates.now()
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
-        state_dict = Dict([state => ode_sol[state] for state in states(ode_sol.prob.f.sys)])
+        state_dict = Dict([state => ode_sol(first.(ts))[state] for state in states(ode_sol.prob.f.sys)])
         o.iter = o.iter + 1
         publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, sol_t = sol.t, params = param_dict, id=o.id)
     end
@@ -249,10 +249,10 @@ function solve(o::Calibrate; callback)
     elseif o.calibrate_method == "local" || o.calibrate_method == "global"
         if o.calibrate_method == "local"
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), Statistics.mean.(last.(o.priors)))
-            fit = EasyModelAnalysis.datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
+            fit = EasyModelAnalysis.datafit(prob, init_params, o.data, loss = sciml_service_l2loss, solve_kws = (callback = callback,))
         else
             init_params = Pair.(EasyModelAnalysis.ModelingToolkit.Num.(first.(o.priors)), tuple.(minimum.(last.(o.priors)), maximum.(last.(o.priors))))
-            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, solve_kws = (callback = callback,))
+            fit = EasyModelAnalysis.global_datafit(prob, init_params, o.data, loss = sciml_service_l2loss, solve_kws = (callback = callback,))
         end
 
         newprob = EasyModelAnalysis.DifferentialEquations.remake(prob, p=fit)
@@ -397,5 +397,5 @@ function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
     for i in 1:length(ts)
         tot_loss += sum((sol(ts[i]; idxs = datakeys[i]) .- timeseries[i]) .^ 2)
     end
-    return tot_loss, sol
+    return tot_loss, sol, ts
 end
