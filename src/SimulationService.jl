@@ -288,7 +288,7 @@ function solve(o::OperationRequest)
     callback = get_callback(o)
     T = route2operation_type[o.route]
     op = T(o)
-    o.result = solve(op; callback)
+    o.result = solve(op, callback = callback)
 end
 
 #-----------------------------------------------------------------------------# DataServiceModel
