@@ -521,4 +521,13 @@ include("operations.jl")
 
 get(ENV, "SIMSERVICE_PRECOMPILE", "true") == "true" && include("precompile.jl")
 
-end # module
+
+#-----------------------------------------------------------------------------# PackageCompilers.jl entry
+function julia_main()::Cint
+    start!(); 
+    while true sleep(10000) end
+    return 0
+end
+
+
+end # module SimulationService
