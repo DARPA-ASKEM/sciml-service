@@ -13,7 +13,7 @@ using SimulationService
 using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble, get_json
 
 SimulationService.ENABLE_TDS[] = false
-RABBITMQ_ENABLED[] = false
+SimulationService.RABBITMQ_ENABLED[] = false
 SimulationService.PORT[] = 8080 # avoid 8000 in case another server is running
 
 # joinpath(root_of_repo, args...)
