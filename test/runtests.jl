@@ -140,9 +140,11 @@ end
         num_iterations = 100
         calibrate_method = "bayesian"
         ode_method = nothing
+        op = OperationRequest() # to test callback
+        op.id = "1"
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
 
-        dfsim, dfparam = solve(o)
+        dfsim, dfparam = solve(o, callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
         statenames = [states(o.sys); getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",reduce(vcat,[string.("ensemble",i,"_", statenames) for i in 1:size(dfsim,2)÷length(statenames)]))
@@ -154,7 +156,7 @@ end
 
         calibrate_method = "global"
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
-        dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+        dfsim, dfparam = SimulationService.solve(o; callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
@@ -209,7 +211,9 @@ end
         ode_method = nothing
 
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
-        dfsim, dfparam = SimulationService.solve(o)
+        op = OperationRequest()
+        op.id = "1"
+        dfsim, dfparam = SimulationService.solve(o, callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
