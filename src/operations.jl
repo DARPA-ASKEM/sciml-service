@@ -127,7 +127,6 @@ function (o::IntermediateResults)(integrator)
         o.last_callback = iter
         state_dict = Dict(states(f.sys) .=> u)
         param_dict = Dict(parameters(f.sys) .=> p)
-
         publish_to_rabbitmq(; iter=iter, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
     end
@@ -136,13 +135,13 @@ end
 
 # Intermediate results functor for calibrate
 function (o::IntermediateResults)(p,lossval, ode_sol, ts)
-    if o.last_callback + o.every ≤ Dates.now()
+    if o.last_callback + o.every == o.iter
+        o.last_callback = o.iter
         param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
         state_dict = Dict([state => ode_sol(first(ts))[state] for state in states(ode_sol.prob.f.sys)])
-        o.iter = o.iter + 1
         publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, timesteps = first(ts), params = param_dict, id=o.id)
     end
-
+    o.iter = o.iter + 1
     return false
 end
 #----------------------------------------------------------------------# dataframe_with_observables
