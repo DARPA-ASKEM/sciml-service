@@ -73,11 +73,9 @@ function __init__()
     HOST[] = get(ENV, "SIMSERVICE_HOST", "0.0.0.0")
     PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
     ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
-    # TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
-    TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL",  "https://data-service.staging.terarium.ai")
+    TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
     TDS_RETRIES[] = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
-    # RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && ENABLE_TDS[]
-    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "true") == "true" && ENABLE_TDS[]
+    RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && ENABLE_TDS[]
     RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
     RABBITMQ_PASSWORD[] = get(ENV, "SIMSERVICE_RABBITMQ_PASSWORD", "guest")
     RABBITMQ_ROUTE[] = get(ENV, "SIMSERVICE_RABBITMQ_ROUTE", "sciml-queue")
