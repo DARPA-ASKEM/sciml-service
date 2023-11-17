@@ -59,6 +59,8 @@ const RABBITMQ_HOST = Ref{String}()
 const RABBITMQ_PORT = Ref{Int}()
 const RABBITMQ_SSL = Ref{Bool}()
 
+const queue_dict = Dict{String, String}()
+
 function __init__()
     if Threads.nthreads() == 1
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."
@@ -240,6 +242,15 @@ function OperationRequest(req::HTTP.Request, route::String)
     @info "[$(o.id)] OperationRequest received to route /$route: $(String(copy(req.body)))"
     o.obj = JSON3.read(req.body)
     o.route = route
+
+    # Use custom MQ if specified
+    params = HTTP.queryparams(req)
+    if haskey(params, "queue") 
+        queue_name = params["queue"]
+        queue_dict[o.id] = queue_name
+        AMQPClient.queue_declare(rabbitmq_channel[], queue_name;)
+    end
+
     for (k,v) in o.obj
         if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset, :model_configs]
             @warn "TDS Disabled - ignoring key `$k` from request with id: $(repr(o.id))"
@@ -369,7 +380,13 @@ function publish_to_rabbitmq(content)
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))
     message = AMQPClient.Message(json, content_type="application/json")
-    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=RABBITMQ_ROUTE[])
+
+    route = RABBITMQ_ROUTE[]
+    if haskey(queue_dict, content[:id])
+        route = queue_dict[content[:id]]
+    end
+
+    AMQPClient.basic_publish(rabbitmq_channel[], message; exchange="", routing_key=route)
 end
 publish_to_rabbitmq(; kw...) = publish_to_rabbitmq(Dict(kw...))
 
@@ -472,6 +489,8 @@ function complete(o::OperationRequest)
     s3_url = get_json(tds_url).url
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
+
+    delete!(queue_dict, o.id)
 end
 
 
