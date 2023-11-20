@@ -47,8 +47,8 @@ end
 
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
-    file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
-    amr = JSON3.read(read(file))
+    
+    amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
     sys = SimulationService.amr_get(amr, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
@@ -59,7 +59,7 @@ end
     @test string.(first.(priors)) == string.(parameters(sys))
     @test last.(priors) isa Vector{Uniform{Float64}}
 
-    df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
+    df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/ensemble.csv").body,DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
     @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
     @test string.(first.(data)) == string.(states(sys))
@@ -120,9 +120,12 @@ end
 
 #-----------------------------------------------------------------------------# Operations
 @testset "Operations Direct" begin
+
+    json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+    sidarthe_model = SimulationService.get_json(json_url).configuration
     @testset "simulate" begin
-        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        obj = SimulationService.get_json(json_url)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
         sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
         df = solve(op; callback = nothing)
@@ -130,11 +133,11 @@ end
         @test extrema(df.timestamp) == (0.0, 99.0)
     end
     @testset "calibrate" begin
-        file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
-        amr = JSON3.read(read(file))
-        sys = SimulationService.amr_get(amr, ODESystem)
-        priors = SimulationService.amr_get(amr, sys, Val(:priors))
-        df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
+        sys = SimulationService.amr_get(obj, ODESystem)
+        priors = SimulationService.amr_get(obj, sys, Val(:priors))
+        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/traditional.csv").body, DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
