@@ -107,8 +107,8 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
     statenames = string.(statelist)
     statenames = [replace(nm, "(t)" => "") for nm in statenames]
 
-    if "timestep" ∈ names(df)
-        tvals = df[:, "timestep"]
+    if "Timestep" ∈ names(df)
+        tvals = df[:, "Timestep"]
     end
 
     if "timestamp" ∈ names(df)
@@ -120,7 +120,9 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
     end
 
     map(statelist, statenames) do s,n
-        s => (tvals,df[:,n])
+        if n ∈ names(df)
+            s => (tvals,df[:,n])
+        end
     end
 end
 

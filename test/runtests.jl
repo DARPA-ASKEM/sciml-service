@@ -73,14 +73,13 @@ end
 
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
-    
     amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
-    sys = SimulationService.amr_get(amr, ODESystem)
+    sys = SimulationService.amr_get(amr.configuration, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
 
-    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+    priors = SimulationService.amr_get(amr.configuration, sys, Val(:priors))
     @test priors isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
     @test string.(first.(priors)) == string.(parameters(sys))
     @test last.(priors) isa Vector{Uniform{Float64}}
@@ -193,25 +192,20 @@ end
     end
 
     @testset "ensemble-simulate" begin
-        amrfiles = [here("examples", "sir_calibrate", "sir1.json"),
-        here("examples", "sir_calibrate", "sir2.json"),
-        here("examples", "sir_calibrate", "sir3.json"),
-        here("examples", "sir_calibrate", "sir4.json")]
-        
-        amrs = JSON3.read.(read.(amrfiles))
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")]
+       
+        amrs = amrfiles
         
         obj = (
-            model_configs = map(1:4) do i
-                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
             models = amrs,
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
-
-        body = JSON3.write(obj)
-        
 
         # create ensemble-simulte
         o = OperationRequest()
@@ -229,15 +223,14 @@ end
     end
 
     @testset "ensemble-calibrate" begin
-        amrfiles = [here("examples", "sir_calibrate", "sir1.json"),
-        here("examples", "sir_calibrate", "sir2.json"),
-        here("examples", "sir_calibrate", "sir3.json"),
-        here("examples", "sir_calibrate", "sir4.json")]
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")]
+       
+        amrs = amrfiles
         
-        amrs = JSON3.read.(read.(amrfiles))
         obj = (
-            model_configs = map(1:4) do i
-                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
             models = amrs,
             timespan = (start = 0, var"end" = 40),
