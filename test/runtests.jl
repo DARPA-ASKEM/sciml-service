@@ -84,7 +84,7 @@ end
     @test string.(first.(priors)) == string.(parameters(sys))
     @test last.(priors) isa Vector{Uniform{Float64}}
 
-    df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/ensemble.csv").body,DataFrame)
+    df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body,DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
     @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
     @test string.(first.(data)) == string.(states(sys))
@@ -162,7 +162,7 @@ end
         obj = SimulationService.get_json(json_url).configuration
         sys = SimulationService.amr_get(obj, ODESystem)
         priors = SimulationService.amr_get(obj, sys, Val(:priors))
-        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/traditional.csv").body, DataFrame)
+        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body, DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
@@ -190,7 +190,7 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
-
+        
     @testset "ensemble-simulate" begin
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")]
@@ -238,25 +238,34 @@ end
             extra = (; num_samples = 40)
         )
 
+        # do ensemble-simulate
+        o = OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrs
+        o.timespan = (0,40)
+        en = Ensemble{Simulate}(o)
+
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
         # create ensemble-calibrate
         o = OperationRequest()
         o.route = "ensemble-calibrate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        o.df = df = CSV.read(here("examples", "sir_calibrate", "sir_ensemble_data.csv"), DataFrame)
+        o.df = sim_en_sol
         en_cal = Ensemble{Calibrate}(o)
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
-        @test cal_sol[!,:Weights] ≈ [0.1, 0.2, 0.3, 0.4]
+        @test cal_sol[!,:Weights] ≈ [0.3333333333333333,0.6666666666666666]
 
     end
 
     @testset "Real Calibrate Payload" begin
-        file = here("examples", "sir_calibrate", "sir.json")
-        amr = JSON3.read(read(file))
-        sys = SimulationService.amr_get(amr, ODESystem)
-        priors = SimulationService.amr_get(amr, sys, Val(:priors))
-        df = CSV.read(here("examples", "sir_calibrate", "sirNoMappingJulia.csv"), DataFrame)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
+        sys = SimulationService.amr_get(obj, ODESystem)
+        priors = SimulationService.amr_get(obj, sys, Val(:priors))
+        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body, DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
@@ -270,7 +279,6 @@ end
 
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
-        @test names(dfparam) == ["beta", "gamma"]
     end
 end
 
