@@ -23,45 +23,43 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 
 simulate_payloads = JSON3.write.([
-    (local_model_file=here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
+    (local_model_file=HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body, timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
     let
-        (; engine, timespan, extra) = JSON3.read(read(here("examples", "calibrate_example1", "request-calibrate-no-integration.json")))
+        (; engine, timespan, extra) = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/scenarios/sidarthe/sciml/calibrate.json")
         (;
             local_csv_file = here("examples", "calibrate_example1", "dataset.csv"),
-            local_model_file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"),
+            local_model_file = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"),
             engine, timespan, extra
         )
     end
 ])
 
         
-simulate_ensemble_payloads = JSON3.write.([(
-            model_configs = map(1:4) do i
-                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
-            end,
-            local_model_files = JSON3.read.(read.([here("examples", "sir_calibrate", "sir1.json"),
-            here("examples", "sir_calibrate", "sir2.json"),
-            here("examples", "sir_calibrate", "sir3.json"),
-            here("examples", "sir_calibrate", "sir4.json")])),
-            timespan = (start = 0, var"end" = 40),
-            engine = "sciml",
-            extra = (; num_samples = 40))]
-        )
+simulate_ensemble_payloads = JSON3.write.([
+    (
+        model_configs = map(1:2) do i
+            (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+        end,
+        models = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")],
+        timespan = (start = 0, var"end" = 40),
+        engine = "sciml",
+        extra = (; num_samples = 40)
+    )])
 
 calibrate_ensemble_payloads = JSON3.write.([(
-            model_configs = map(1:4) do i
-                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
-            local_model_files = JSON3.read.(read.([here("examples", "sir_calibrate", "sir1.json"),
-            here("examples", "sir_calibrate", "sir2.json"),
-            here("examples", "sir_calibrate", "sir3.json"),
-            here("examples", "sir_calibrate", "sir4.json")])),
+            local_model_files = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sirhd.json"),
+            SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/seiarhds.json"),
+            ],
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
-            local_csv_file = here("examples", "sir_calibrate", "sir_ensemble_data.csv"),
+            local_csv_file = HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/ensemble.csv").body,
             extra = (; num_samples = 40))]
         )
 
