@@ -23,15 +23,15 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 
 simulate_payloads = JSON3.write.([
-    (local_model_file=JSON3.write(JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)), timespan = (; start=0, var"end"=100)),
+    (configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json", timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
     let
         (; engine, timespan, extra) = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/scenarios/sidarthe/sciml/calibrate.json")
         (;
-            local_csv_file = here("examples", "calibrate_example1", "dataset.csv"),
-            local_model_file = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"),
+            dataset_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv",
+            configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
             engine, timespan, extra
         )
     end
@@ -134,6 +134,7 @@ end
     req = HTTP.Request("POST", "", [], simulate_payloads[1])
     o = OperationRequest(req, "simulate")
     @test DataServiceModel(o).id == o.id
+    @test !isnothing(o.model)
 
     # Test that `create` returns JSON with the required keys
     create_obj = JSON3.read(SimulationService.create(o))

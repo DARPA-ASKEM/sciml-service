@@ -266,9 +266,14 @@ function OperationRequest(req::HTTP.Request, route::String)
         k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
 
         # For testing only:
+        k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :
         k == :local_model_file ? (o.model = JSON3.read(v)) :
-        k == :local_model_files ? (o.models = v) :
         k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :
+
+        # For testing from simulation-integration URLs
+        k == :model_file_url ? (o.model = JSON3.read(HTTP.get(v).body)) :
+        k == :configuration_file_url ? (o.model = JSON3.read(HTTP.get(v).body).configuration) :
+        k == :dataset_url ? (o.df = CSV.read((HTTP.get(v).body), DataFrame)) :
         nothing
     end
 
