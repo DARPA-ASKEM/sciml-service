@@ -23,7 +23,7 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 
 simulate_payloads = JSON3.write.([
-    (local_model_file=HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body, timespan = (; start=0, var"end"=100)),
+    (local_model_file=JSON3.write(JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)), timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
@@ -43,8 +43,8 @@ simulate_ensemble_payloads = JSON3.write.([
         model_configs = map(1:2) do i
             (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
         end,
-        models = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
-        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")],
+        models = JSON3.write([SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")]),
         timespan = (start = 0, var"end" = 40),
         engine = "sciml",
         extra = (; num_samples = 40)
