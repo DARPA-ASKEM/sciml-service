@@ -252,20 +252,20 @@ function OperationRequest(req::HTTP.Request, route::String)
     end
 
     for (k,v) in o.obj
+        @info "k : $k"
+        # Skip keys using TDS if !ENABLE_TDS
         if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset, :model_configs]
             @warn "TDS Disabled - ignoring key `$k` from request with id: $(repr(o.id))"
             continue
-        else
-            k == :model_config_id ? (o.model = get_model(v)) :
-            k == :model_config_ids ? (o.models = get_model.(v)) :
-            k == :dataset ? (o.df = get_dataset(v)) :
-            # For ensemble, we get objects with {id, solution_mappings, weight}
-            k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
-            nothing
         end
-        
-        k == :timespan ? (o.timespan = (Float64(v.start), Float64(v.end))) :
+        k == :model_config_id ? (o.model = get_model(v)) :
+        k == :model_config_ids ? (o.models = get_model.(v)) :
+        k == :timespan ? (o.timespan = (Float64(v.start),Float64(v.end))) :
+        k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
+
+        # For ensemble, we get objects with {id, solution_mappings, weight}
+        k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
 
         # For testing only:
         k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :
@@ -274,9 +274,9 @@ function OperationRequest(req::HTTP.Request, route::String)
 
         # For testing from simulation-integration URLs
         k == :model_file_url ? (o.model = JSON3.read(HTTP.get(v).body)) :
-        k == :model_file_urls ? (o.models = JSON3.read.(HTTP.get.(v))) :
+        k == :model_file_urls ? (o.models = [JSON3.read(HTTP.get(m).body) for m in v]) :
         k == :configuration_file_url ? (o.model = JSON3.read(HTTP.get(v).body).configuration) :
-        k == :configuration_file_urls ? (o.models = [JSON3.read(HTTP.get(m).body).configuration for m in v]) : 
+        k == :configuration_file_urls ? (o.models = [JSON3.read(HTTP.get(m).body).configuration for m in v]) :
         k == :dataset_url ? (o.df = CSV.read((HTTP.get(v).body), DataFrame)) :
         nothing
     end

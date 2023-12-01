@@ -55,7 +55,7 @@ calibrate_ensemble_payloads = JSON3.write.([(
                 (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
             end,
             model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json",
-            "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json"],
+            "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"],
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             dataset_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/ensemble.csv",
@@ -193,6 +193,7 @@ end
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRD_base_model01.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/raw_models/SEIRHD_base_model01.json")]
        
+        
         amrs = amrfiles
         
         obj = (
@@ -344,4 +345,5 @@ end
             end
         end
     end
-end
+end 
+
