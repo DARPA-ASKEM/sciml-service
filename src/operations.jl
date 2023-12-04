@@ -109,9 +109,7 @@ function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
 
     tvals = df[:, "timestamp"]
 
-    map(statelist, statenames) do s,n
-        s => (tvals,df[:,n])
-    end
+    [s => (tvals,df[:,n]) for (s,n) in zip(statelist,statenames) if n ∈ names(df)]
 end
 
 #--------------------------------------------------------------------# IntermediateResults callback
