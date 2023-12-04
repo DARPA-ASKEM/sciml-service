@@ -16,7 +16,10 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     statenames = [Symbol(s.id) for s in model.states]
     statevars  = [only(@variables $s) for s in statenames]
     statefuncs = [only(@variables $s(t)) for s in statenames]
-    obsnames   = [Symbol(o.id) for o in ode.observables]
+    obsnames   = []
+    if haskey(ode, "observables")
+        obsnames = [Symbol(o.id) for o in ode.observables]
+    end
     obsvars    = [only(@variables $o) for o in obsnames]
     obsfuncs   = [only(@variables $o(t)) for o in obsnames]
     allvars    = [statevars; obsvars]
@@ -48,9 +51,11 @@ function amr_get(amr::JSON3.Object, ::Type{ODESystem})
     subst = merge!(Dict(allvars .=> allfuncs), Dict(paramvars .=> paramvars))
     eqs = [D(statef) ~ substitute(eqs[state], subst) for (state, statef) in (statenames .=> statefuncs)]
 
-    for (o, ofunc) in zip(ode.observables, obsfuncs)
-        expr = substitute(MathML.parse_str(o.expression_mathml), subst)
-        push!(eqs, ofunc ~ expr)
+    if haskey(ode, "observables")
+        for (o, ofunc) in zip(ode.observables, obsfuncs)
+            expr = substitute(MathML.parse_str(o.expression_mathml), subst)
+            push!(eqs, ofunc ~ expr)
+        end
     end
 
     defaults = [statefuncs .=> initial_vals; sym_defs]
