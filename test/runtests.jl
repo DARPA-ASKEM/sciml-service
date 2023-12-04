@@ -52,11 +52,11 @@ simulate_ensemble_payloads = JSON3.write.([
 
 calibrate_ensemble_payloads = JSON3.write.([(
             model_configs = map(1:2) do i
-                (id="model_config_id_$i", weight = 0.5, solution_mappings = (any_generic = "I", name = "R", s = "S"))
+                (id="model_config_id_$i", weight = 0.5, solution_mappings = (Ailing = "Ailing", Diagnosed = "Diagnosed", Extinct = "Extinct", Healed = "Healed", Infected = "Infected", Recognized = "Recognized", Susceptible = "Susceptible", Threatened = "Threatened"))
             end,
-            model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
+            configuration_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
             "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"],
-            timespan = (start = 0, var"end" = 40),
+            timespan = (start = 0, var"end" = 89),
             engine = "sciml",
             dataset_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv",
             extra = (; num_samples = 40))]
