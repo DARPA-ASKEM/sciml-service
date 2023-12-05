@@ -412,14 +412,25 @@ end
 function get_dataset(obj::JSON3.Object)
     @assert ENABLE_TDS[]
     @info "get_dataset with obj = $(JSON3.write(obj))"
+
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
+
+    # there should always be a mapping from the dataset timestamp column name to 'timestamp'
+    if !any(v -> v == "timestamp", values(obj.mappings))
+        @error "Expected mapping from <dataset timestamp column> to 'timestamp' not provided"
+    end
+
     for (k,v) in get(obj, :mappings, Dict())
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
-        rename!(df, k => v)
+        if k != "tstep"
+            rename!(df, k => v)
+        else
+            rename!(df, v => "timestamp") # hack to get df in our "schema"
+        end
     end
-    obj.mappings["tstep"] in names(df) && rename!(df, obj.mappings["tstep"] => "timestamp")  # hack to get df in our "schema"
+
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end
