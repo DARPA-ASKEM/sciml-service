@@ -424,7 +424,11 @@ function get_dataset(obj::JSON3.Object)
 
     for (k,v) in get(obj, :mappings, Dict())
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
-        rename!(df, k => v)
+        if k != "tstep"
+            rename!(df, k => v)
+        else
+            rename!(df, v => "timestamp") # hack to get df in our "schema"
+        end
     end
 
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
