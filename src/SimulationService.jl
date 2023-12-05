@@ -419,7 +419,7 @@ function get_dataset(obj::JSON3.Object)
 
     # there should always be a mapping from the dataset timestamp column name to 'timestamp'
     if !any(v -> v == "timestamp", values(obj.mappings))
-        @error "None of the values in obj.mappings are equal to 'timestamp'"
+        @error "Expected mapping from <dataset timestamp column> to 'timestamp' not provided"
     end
 
     for (k,v) in get(obj, :mappings, Dict())
