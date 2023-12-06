@@ -1,4 +1,5 @@
 using SimulationService
 import ModelingToolkit: ODESystem
 import JSON3
-SimulationService.amr_get(JSON3.read(joinpath(@__DIR__, "examples", "calibrate_example1", "BIOMD0000000955_askenet.json")), ODESystem)
+import HTTP
+SimulationService.amr_get(JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body), ODESystem)
