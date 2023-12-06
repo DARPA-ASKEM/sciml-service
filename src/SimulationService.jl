@@ -248,7 +248,7 @@ function OperationRequest(req::HTTP.Request, route::String)
     if haskey(params, "queue") 
         queue_name = params["queue"]
         queue_dict[o.id] = queue_name
-        AMQPClient.queue_declare(rabbitmq_channel[], queue_name;)
+        AMQPClient.queue_declare(rabbitmq_channel[], queue_name; passive=true)
     end
 
     for (k,v) in o.obj
@@ -419,7 +419,7 @@ function get_dataset(obj::JSON3.Object)
 
     # there should always be a mapping from the dataset timestamp column name to 'timestamp'
     if !any(v -> v == "timestamp", values(obj.mappings))
-        @error "Expected mapping from <dataset timestamp column> to 'timestamp' not provided"
+        @warn "Expected mapping from <dataset timestamp column> to 'timestamp' not provided"
     end
 
     for (k,v) in get(obj, :mappings, Dict())
