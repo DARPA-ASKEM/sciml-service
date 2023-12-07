@@ -417,11 +417,6 @@ function get_dataset(obj::JSON3.Object)
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
 
-    # there should always be a mapping from the dataset timestamp column name to 'timestamp'
-    if !any(v -> v == "timestamp", values(obj.mappings))
-        @warn "Expected mapping from <dataset timestamp column> to 'timestamp' not provided"
-    end
-
     for (k,v) in get(obj, :mappings, Dict())
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
         if k != "tstep"
