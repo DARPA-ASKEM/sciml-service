@@ -308,23 +308,22 @@ end
 
 # Solves multiple ODEs, performs a weighted sum
 # of the solutions.
-function solve(o::Ensemble{Simulate}; callback)
+function SimulationService.solve(o::Ensemble{Simulate}; callback)
     systems = [sim.sys for sim in o.operations]
     probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
-    enprob = EasyModelAnalysis.EnsembleProblem(probs)
-    sol = solve(enprob; saveat = 1, callback);
+    
+    sols = [solve(prob; saveat = 1, callback) for prob in probs]
 
+    # Associate the name in sol_mappings with the right state/observable
+    mappy = Dict(map(sols,o.sol_mappings,systems) do sol, mappings, sys
+        sys.name => Dict([k => sol[getproperty(sys, Symbol(v))]  for (k,v) in mappings])
+    end)
+    
     weights = o.weights
-    sol_maps = o.sol_mappings[1]
 
-    sol_map_states = [state for state in states(systems[1]) if first(values(state.metadata))[2] in Symbol.(values(sol_maps))]
+    data = [k => reduce(+ , weights.*[model_data_dict[k] for model_data_dict in values(mappy)]) for (k,v) in o.sol_mappings[1]]
 
-    data = [x => vec(sum(stack(weights .* [ind_sol[x] for ind_sol in sol]), dims = 2)) for x in sol_map_states]
-
-    state_symbs = [first(values(pair.first.metadata))[2] for pair in data]
-    state_data = [dat.second for dat in data]
-    dataframable_pairs = [state => data for (state,data) in zip(state_symbs,state_data)]
-    DataFrame(:timestamp => sol[1].t, dataframable_pairs...)
+    DataFrame(:timestamp => sols[1].t, data...)
 end
 
 
