@@ -248,7 +248,7 @@ function OperationRequest(req::HTTP.Request, route::String)
     if haskey(params, "queue") 
         queue_name = params["queue"]
         queue_dict[o.id] = queue_name
-        AMQPClient.queue_declare(rabbitmq_channel[], queue_name;)
+        AMQPClient.queue_declare(rabbitmq_channel[], queue_name; passive=true)
     end
 
     for (k,v) in o.obj
