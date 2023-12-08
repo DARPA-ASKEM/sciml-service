@@ -282,6 +282,21 @@ struct Ensemble{T<:Operation} <: Operation
     df::Union{Nothing, DataFrame} # for calibrate only
 end
 
+function Ensemble{T}(o::OperationRequest) where {T}
+    model_ids = map(x -> x.id, o.obj.model_configs)
+    weights = map(x -> x.weight, o.obj.model_configs)
+    sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
+    df = o.df # we get one set of data for ensemble calibration
+    operations = map(o.models) do model
+        temp = OperationRequest()
+        temp.df = df
+        temp.timespan = o.timespan
+        temp.model = model
+        temp.obj = o.obj
+        T(temp)
+    end
+    Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
+end
 struct EnsembleSimulate <: Operation
     model_ids::Vector{String}
     systems::Dict{String,ODESystem}
@@ -309,23 +324,8 @@ struct EnsembleCalibrate <: Operation
     df::DataFrame
 end
 
-function Ensemble{T}(o::OperationRequest) where {T}
-    model_ids = map(x -> x.id, o.obj.model_configs)
-    weights = map(x -> x.weight, o.obj.model_configs)
-    sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
-    df = o.df # we get one set of data for ensemble calibration
-    operations = map(o.models) do model
-        temp = OperationRequest()
-        temp.df = df
-        temp.timespan = o.timespan
-        temp.model = model
-        temp.obj = o.obj
-        T(temp)
-    end
-    Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
-end
 
-function get_callback(o::OperationRequest, ::Type{Ensemble{Simulate}})
+function get_callback(o::OperationRequest, ::Type{EnsembleSimulate})
     nothing
 end
 
@@ -335,7 +335,7 @@ end
 
 # Solves multiple ODEs, performs a weighted sum
 # of the solutions.
-function SimulationService.solve(o::EnsembleSimulate; callback)
+function solve(o::EnsembleSimulate; callback)
     systems = o.systems
     model_ids = o.model_ids
 

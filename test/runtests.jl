@@ -207,12 +207,12 @@ end
         )
 
         # create ensemble-simulte
-        o = OperationRequest()
+        o = SimulationService.OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        en = Ensemble{Simulate}(o)
+        en = SimulationService.EnsembleSimulate(o)
 
         sim_en_sol = SimulationService.solve(en, callback = nothing)
 
@@ -243,7 +243,7 @@ end
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        en = Ensemble{Simulate}(o)
+        en = SimulationService.EnsembleSimulate(o)
 
         sim_en_sol = SimulationService.solve(en, callback = nothing)
         # create ensemble-calibrate
