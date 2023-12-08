@@ -259,13 +259,13 @@ function OperationRequest(req::HTTP.Request, route::String)
             continue
         end
         k == :model_config_id ? (o.model = get_model(v)) :
-        k == :model_config_ids ? (o.models = get_model.(v)) :
+        k == :model_config_ids ? (o.models = Dict([id => get_model(id) for id in v])) :
         k == :timespan ? (o.timespan = (Float64(v.start),Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
 
         # For ensemble, we get objects with {id, solution_mappings, weight}
-        k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
+        k == :model_configs ? (o.models = [m.id => get_model(m.id) for m in v]) :
 
         # For testing only:
         k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :
