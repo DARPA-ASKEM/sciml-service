@@ -218,14 +218,14 @@ end
 
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
-    obj::JSON3.Object = JSON3.Object()                      # untouched JSON from request sent by HMI
-    id::String = "sciml-$(UUIDs.uuid4())"                   # matches DataServiceModel :id
-    route::String = "unknown"                               # :simulate, :calibrate, etc.
-    model::Union{Nothing, JSON3.Object} = nothing           # ASKEM Model Representation (AMR)
-    models::Union{Nothing, Vector{JSON3.Object}} = nothing  # Multiple models (in AMR)
-    timespan::Union{Nothing, NTuple{2, Float64}} = nothing  # (start, end)
-    df::Union{Nothing, DataFrame} = nothing                 # dataset (calibrate only)
-    result::Any = nothing                                   # store result of job
+    obj::JSON3.Object = JSON3.Object()                             # untouched JSON from request sent by HMI
+    id::String = "sciml-$(UUIDs.uuid4())"                          # matches DataServiceModel :id
+    route::String = "unknown"                                      # :simulate, :calibrate, etc.
+    model::Union{Nothing, JSON3.Object} = nothing                  # ASKEM Model Representation (AMR)
+    models::Union{Nothing, Vector{JSON3.Object}} = nothing         # Multiple models (in AMR)
+    timespan::Union{Nothing, NTuple{2, Float64}} = nothing         # (start, end)
+    df::Union{Nothing, DataFrame} = nothing                        # dataset (calibrate only)
+    result::Any = nothing                                          # store result of job
 end
 
 function get_callback(o::OperationRequest)
@@ -259,13 +259,13 @@ function OperationRequest(req::HTTP.Request, route::String)
             continue
         end
         k == :model_config_id ? (o.model = get_model(v)) :
-        k == :model_config_ids ? (o.models = Dict([id => get_model(id) for id in v])) :
+        k == :model_config_ids ? (o.models = (o.models = get_model.(v))) :
         k == :timespan ? (o.timespan = (Float64(v.start),Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
 
         # For ensemble, we get objects with {id, solution_mappings, weight}
-        k == :model_configs ? (o.models = [m.id => get_model(m.id) for m in v]) :
+        k == :model_configs ? (o.models = [get_model(m.id) for m in v]) :
 
         # For testing only:
         k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :

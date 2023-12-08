@@ -229,7 +229,7 @@ end
         
         obj = (
             model_configs = map(1:2) do i
-                (id="model_config_id_$i", weight = (3-i) / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
             end,
             models = amrs,
             timespan = (start = 0, var"end" = 40),

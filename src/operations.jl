@@ -282,6 +282,33 @@ struct Ensemble{T<:Operation} <: Operation
     df::Union{Nothing, DataFrame} # for calibrate only
 end
 
+struct EnsembleSimulate <: Operation
+    model_ids::Vector{String}
+    systems::Dict{String,ODESystem}
+    weights::Dict{String,Float64}
+    sol_mappings::Dict{String,JSON3.Object}
+    timespan::Tuple{Float64, Float64}
+end
+
+function EnsembleSimulate(o::OperationRequest)
+    model_ids = map(x -> x.id, o.obj.model_configs)
+    dict = Dict(model_ids .=> o.models)
+    systems = Dict([id => SimulationService.amr_get(dict[id], ODESystem) for id in model_ids])
+    weights = Dict(map(x -> x.id => x.weight, o.obj.model_configs))
+    sol_mappings = Dict(map(x -> x.id => x.solution_mappings, o.obj.model_configs))
+    timespan = o.timespan
+
+    EnsembleSimulate(model_ids,systems,weights,sol_mappings,timespan)
+end
+
+struct EnsembleCalibrate <: Operation
+    model_ids::Vector{String}
+    systems::Dict{String,ODESystem}
+    weights::Vector{Float64}
+    sol_mappings::Vector{JSON3.Object}
+    df::DataFrame
+end
+
 function Ensemble{T}(o::OperationRequest) where {T}
     model_ids = map(x -> x.id, o.obj.model_configs)
     weights = map(x -> x.weight, o.obj.model_configs)
@@ -308,22 +335,25 @@ end
 
 # Solves multiple ODEs, performs a weighted sum
 # of the solutions.
-function SimulationService.solve(o::Ensemble{Simulate}; callback)
-    systems = [sim.sys for sim in o.operations]
-    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
+function SimulationService.solve(o::EnsembleSimulate; callback)
+    systems = o.systems
+    model_ids = o.model_ids
+
+    probs = Dict([id => ODEProblem(systems[id], [], o.timespan) for id in model_ids])
     
-    sols = [solve(prob; saveat = 1, callback) for prob in probs]
+    sols = Dict([id => solve(probs[id]; saveat = 1, callback) for id in model_ids])
 
     # Associate the name in sol_mappings with the right state/observable
-    mappy = Dict(map(sols,o.sol_mappings,systems) do sol, mappings, sys
-        sys.name => Dict([k => sol[getproperty(sys, Symbol(v))]  for (k,v) in mappings])
-    end)
-    
+    map_to_state = Dict([id => Dict([k => sols[id][getproperty(systems[id],Symbol(v))] for (k,v) in o.sol_mappings[id]]) for id in model_ids])
+
     weights = o.weights
 
-    data = [k => reduce(+ , weights .* [model_data_dict[k] for model_data_dict in values(mappy)]) for (k,v) in o.sol_mappings[1]]
+    # the keys for all solution mappings should be the same
+    sol_mappings_keys = keys(o.sol_mappings[o.model_ids[1]])
 
-    DataFrame(:timestamp => sols[1].t, data...)
+    data = [k => reduce(+ , [weights[id] .* map_to_state[id][k] for id in o.model_ids]) for k in sol_mappings_keys]
+
+    DataFrame(:timestamp => sols[model_ids[1]].t, data...)
 end
 
 
