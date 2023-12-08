@@ -252,13 +252,15 @@ function OperationRequest(req::HTTP.Request, route::String)
     end
 
     for (k,v) in o.obj
+        @info "k : $k"
+        # Skip keys using TDS if !ENABLE_TDS
         if !ENABLE_TDS[] && k in [:model_config_id, :model_config_ids, :dataset, :model_configs]
             @warn "TDS Disabled - ignoring key `$k` from request with id: $(repr(o.id))"
             continue
         end
         k == :model_config_id ? (o.model = get_model(v)) :
         k == :model_config_ids ? (o.models = get_model.(v)) :
-        k == :timespan ? (o.timespan = (Float64(v.start), Float64(v.end))) :
+        k == :timespan ? (o.timespan = (Float64(v.start),Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
 
@@ -269,6 +271,13 @@ function OperationRequest(req::HTTP.Request, route::String)
         k == :local_model_configuration_file ? (o.model = JSON3.read(v).configuration) :
         k == :local_model_file ? (o.model = JSON3.read(v)) :
         k == :local_csv_file ? (o.df = CSV.read(v, DataFrame)) :
+
+        # For testing from simulation-integration URLs
+        k == :model_file_url ? (o.model = JSON3.read(HTTP.get(v).body)) :
+        k == :model_file_urls ? (o.models = [JSON3.read(HTTP.get(m).body) for m in v]) :
+        k == :configuration_file_url ? (o.model = JSON3.read(HTTP.get(v).body).configuration) :
+        k == :configuration_file_urls ? (o.models = [JSON3.read(HTTP.get(m).body).configuration for m in v]) :
+        k == :dataset_url ? (o.df = CSV.read((HTTP.get(v).body), DataFrame)) :
         nothing
     end
 
@@ -375,7 +384,8 @@ end
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
     if !RABBITMQ_ENABLED[]
-        @warn "RabbitMQ disabled - `publish_to_rabbitmq` with content $(JSON3.write(content))"
+        # stop printing content for now, getting to be too much
+        @warn "RabbitMQ disabled - `publish_to_rabbitmq`" # with content $(JSON3.write(content))"
         return content
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))

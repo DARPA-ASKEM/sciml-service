@@ -1,4 +1,3 @@
-
 using CSV
 using DataFrames
 using Dates
@@ -21,23 +20,47 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 #-----------------------------------------------------------------------# JSON payloads for testing
 # route => payload
+
+
 simulate_payloads = JSON3.write.([
-    (local_model_file=here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"), timespan = (; start=0, var"end"=100)),
+    (configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json", timespan = (; start=0, var"end"=100)),
 ])
 
 calibrate_payloads = JSON3.write.([
     let
-        (; engine, timespan, extra) = JSON3.read(read(here("examples", "calibrate_example1", "request-calibrate-no-integration.json")))
+        (; engine, timespan, extra) = SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/scenarios/sidarthe/sciml/calibrate.json")
         (;
-            local_csv_file = here("examples", "calibrate_example1", "dataset.csv"),
-            local_model_file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json"),
+            dataset_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv",
+            configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
             engine, timespan, extra
         )
-
     end
 ])
 
-ensemble_payloads = JSON3.write.([])
+        
+simulate_ensemble_payloads = JSON3.write.([
+    (
+        model_configs = map(1:2) do i
+            (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+        end,
+        model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json",
+        "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json"],
+        timespan = (start = 0, var"end" = 40),
+        engine = "sciml",
+        extra = (; num_samples = 40)
+    )])
+
+calibrate_ensemble_payloads = JSON3.write.([(
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = 0.5, solution_mappings = (Ailing = "Ailing", Diagnosed = "Diagnosed", Extinct = "Extinct", Healed = "Healed", Infected = "Infected", Recognized = "Recognized", Susceptible = "Susceptible", Threatened = "Threatened"))
+            end,
+            configuration_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
+            "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"],
+            timespan = (start = 0, var"end" = 89),
+            engine = "sciml",
+            dataset_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv",
+            extra = (; num_samples = 40))]
+        )
 
 #-----------------------------------------------------------------------------# utils
 @testset "utils" begin
@@ -47,19 +70,18 @@ end
 
 #-----------------------------------------------------------------------------# AMR parsing
 @testset "AMR parsing" begin
-    file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
-    amr = JSON3.read(read(file))
-    sys = SimulationService.amr_get(amr, ODESystem)
+    amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
+    sys = SimulationService.amr_get(amr.configuration, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
 
-    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+    priors = SimulationService.amr_get(amr.configuration, sys, Val(:priors))
     @test priors isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Uniform{Float64}}}
     @test string.(first.(priors)) == string.(parameters(sys))
     @test last.(priors) isa Vector{Uniform{Float64}}
 
-    df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
+    df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body,DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
     @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
     @test string.(first.(data)) == string.(states(sys))
@@ -111,6 +133,7 @@ end
     req = HTTP.Request("POST", "", [], simulate_payloads[1])
     o = OperationRequest(req, "simulate")
     @test DataServiceModel(o).id == o.id
+    @test !isnothing(o.model)
 
     # Test that `create` returns JSON with the required keys
     create_obj = JSON3.read(SimulationService.create(o))
@@ -120,9 +143,12 @@ end
 
 #-----------------------------------------------------------------------------# Operations
 @testset "Operations Direct" begin
+
+    json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+    sidarthe_model = SimulationService.get_json(json_url).configuration
     @testset "simulate" begin
-        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        obj = SimulationService.get_json(json_url)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
         sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
         df = solve(op; callback = nothing)
@@ -130,11 +156,11 @@ end
         @test extrema(df.timestamp) == (0.0, 99.0)
     end
     @testset "calibrate" begin
-        file = here("examples", "calibrate_example1", "BIOMD0000000955_askenet.json")
-        amr = JSON3.read(read(file))
-        sys = SimulationService.amr_get(amr, ODESystem)
-        priors = SimulationService.amr_get(amr, sys, Val(:priors))
-        df = CSV.read(here("examples", "calibrate_example1", "dataset.csv"), DataFrame)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
+        sys = SimulationService.amr_get(obj, ODESystem)
+        priors = SimulationService.amr_get(obj, sys, Val(:priors))
+        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body, DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
@@ -162,48 +188,83 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
-    @testset "Ensemble" begin
-        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/Model-Representations/main/petrinet/examples/sir.json"
-        amr = SimulationService.get_json(json_url)
-
+        
+    @testset "ensemble-simulate" begin
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json")]
+       
+        
+        amrs = amrfiles
+        
         obj = (
-            model_configs = map(1:4) do i
-                (id="model_config_id_$i", weight = i / sum(1:4), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (Infected = "I", Recovered = "R", Susceptible = "S"))
             end,
-            models = [amr for _ in 1:4],
+            models = amrs,
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
 
-        body = JSON3.write(obj)
-
         # create ensemble-simulte
         o = OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
-        o.models = [amr for _ in 1:4]
-        o.timespan = (0, 30)
+        o.models = amrs
+        o.timespan = (0,40)
         en = Ensemble{Simulate}(o)
 
-        sim_sol = SimulationService.solve(en, callback = nothing)
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
 
         # bad test, need something better
-        @test first(names(sim_sol)) == "t"
+        @test names(sim_en_sol) == ["timestamp","Infected","Recovered","Susceptible"]
 
+    end
+
+    @testset "ensemble-calibrate" begin
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json")]
+       
+        amrs = amrfiles
+        
+        obj = (
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = (3-i) / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
+            end,
+            models = amrs,
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
+
+        # do ensemble-simulate
+        o = OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrs
+        o.timespan = (0,40)
+        en = Ensemble{Simulate}(o)
+
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
         # create ensemble-calibrate
-        # o = OperationRequest()
-        # o.route = "ensemble-calibrate"
-        # json = JSON3.read(here("examples", "sir_calibrate", "sir_calibrate_request"), Dict)
-        # delete!(json, "modelConfigId")
+        o = OperationRequest()
+        o.route = "ensemble-calibrate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrs
+        o.timespan = (0,40)
+        o.df = sim_en_sol
+        en_cal = Ensemble{Calibrate}(o)
+        cal_sol = SimulationService.solve(en_cal,callback = nothing)
+        @test cal_sol[!,:Weights] ≈ [0.3333333333333333,0.6666666666666666]
+
     end
 
     @testset "Real Calibrate Payload" begin
-        file = here("examples", "sir_calibrate", "sir.json")
-        amr = JSON3.read(read(file))
-        sys = SimulationService.amr_get(amr, ODESystem)
-        priors = SimulationService.amr_get(amr, sys, Val(:priors))
-        df = CSV.read(here("examples", "sir_calibrate", "sirNoMappingJulia.csv"), DataFrame)
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
+        obj = SimulationService.get_json(json_url).configuration
+        sys = SimulationService.amr_get(obj, ODESystem)
+        priors = SimulationService.amr_get(obj, sys, Val(:priors))
+        df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body, DataFrame)
         data = SimulationService.amr_get(df, sys, Val(:data))
         num_chains = 4
         num_iterations = 100
@@ -217,7 +278,6 @@ end
 
         statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
-        @test names(dfparam) == ["beta", "gamma"]
     end
 end
 
@@ -268,8 +328,22 @@ end
             end
         end
 
-        @testset "/ensemble" begin
-            @test true # TODO
+        @testset "/ensemble-simulate" begin
+            for body in simulate_ensemble_payloads
+                res = HTTP.post("$url/ensemble-simulate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id)
+            end
+        end
+        @testset "/ensemble-calibrate" begin
+            for body in calibrate_ensemble_payloads
+                res = HTTP.post("$url/ensemble-calibrate", ["Content-Type" => "application/json"]; body)
+                @test res.status == 201
+                id = JSON3.read(res.body).simulation_id
+                test_until_done(id)
+            end
         end
     end
-end
+end 
+
