@@ -384,7 +384,8 @@ end
 # published as JSON3.write(content)
 function publish_to_rabbitmq(content)
     if !RABBITMQ_ENABLED[]
-        @warn "RabbitMQ disabled - `publish_to_rabbitmq` with content $(JSON3.write(content))"
+        # stop printing content for now, getting to be too much
+        @warn "RabbitMQ disabled - `publish_to_rabbitmq`" # with content $(JSON3.write(content))"
         return content
     end
     json = Vector{UInt8}(codeunits(JSON3.write(content)))

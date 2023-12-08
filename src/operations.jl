@@ -321,7 +321,7 @@ function SimulationService.solve(o::Ensemble{Simulate}; callback)
     
     weights = o.weights
 
-    data = [k => reduce(+ , weights.*[model_data_dict[k] for model_data_dict in values(mappy)]) for (k,v) in o.sol_mappings[1]]
+    data = [k => reduce(+ , weights .* [model_data_dict[k] for model_data_dict in values(mappy)]) for (k,v) in o.sol_mappings[1]]
 
     DataFrame(:timestamp => sols[1].t, data...)
 end
