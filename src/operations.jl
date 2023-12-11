@@ -342,26 +342,6 @@ function solve(o::EnsembleSimulate; callback)
     DataFrame(:timestamp => sols[model_ids[1]].t, data...)
 end
 
-
-function solve(o::Ensemble{Calibrate}; callback)
-    systems = [sim.sys for sim in o.operations]
-    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
-
-    sol_maps = o.sol_mappings[1]
-    enprob = EasyModelAnalysis.EnsembleProblem(probs)
-    sol = solve(enprob; saveat = 1, callback);
-    
-    data = o.df 
-
-    sol_maps_for_cal = Symbol.(names(data))
-
-    
-    datacal_pairs = [state => data[!,first(values(state.metadata))[2]] for state in states(systems[1]) if first(values(state.metadata))[2] in sol_maps_for_cal]
-
-    weights  = EasyModelAnalysis.ensemble_weights(sol,datacal_pairs)
-    DataFrame("Weights" => weights)
-end
-
 function solve(o::EnsembleCalibrate; callback)
     systems = o.systems
     model_ids = o.model_ids
