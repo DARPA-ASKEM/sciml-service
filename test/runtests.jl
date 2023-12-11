@@ -9,7 +9,7 @@ using Oxygen
 using SciMLBase: solve
 using Test
 using SimulationService
-using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble, get_json
+using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, get_json
 
 SimulationService.ENABLE_TDS[] = false
 SimulationService.RABBITMQ_ENABLED[] = false
