@@ -236,7 +236,6 @@ end
             engine = "sciml",
             extra = (; num_samples = 40)
         )
-
         # do ensemble-simulate
         o = OperationRequest()
         o.route = "ensemble-simulate"
@@ -244,7 +243,6 @@ end
         o.models = amrs
         o.timespan = (0,40)
         en = SimulationService.EnsembleSimulate(o)
-
         sim_en_sol = SimulationService.solve(en, callback = nothing)
         # create ensemble-calibrate
         o = OperationRequest()

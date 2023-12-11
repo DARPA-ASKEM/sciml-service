@@ -331,7 +331,7 @@ function solve(o::EnsembleSimulate; callback)
 
     # Associate the name in sol_mappings with the right state/observable
     map_to_state = Dict([id => Dict([k => sols[id][getproperty(systems[id],Symbol(v))] for (k,v) in o.sol_mappings[id]]) for id in model_ids])
-
+    
     weights = o.weights
 
     # the keys for all solution mappings should be the same

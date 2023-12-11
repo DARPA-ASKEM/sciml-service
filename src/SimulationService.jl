@@ -248,7 +248,7 @@ function OperationRequest(req::HTTP.Request, route::String)
     if haskey(params, "queue") 
         queue_name = params["queue"]
         queue_dict[o.id] = queue_name
-        AMQPClient.queue_declare(rabbitmq_channel[], queue_name;)
+        AMQPClient.queue_declare(rabbitmq_channel[], queue_name; passive=true)
     end
 
     for (k,v) in o.obj
@@ -259,7 +259,7 @@ function OperationRequest(req::HTTP.Request, route::String)
             continue
         end
         k == :model_config_id ? (o.model = get_model(v)) :
-        k == :model_config_ids ? (o.models = (o.models = get_model.(v))) :
+        k == :model_config_ids ? (o.models = get_model.(v)) :
         k == :timespan ? (o.timespan = (Float64(v.start),Float64(v.end))) :
         k == :dataset ? (o.df = get_dataset(v)) :
         k == :model ? (o.model = v) :
@@ -422,14 +422,20 @@ end
 function get_dataset(obj::JSON3.Object)
     @assert ENABLE_TDS[]
     @info "get_dataset with obj = $(JSON3.write(obj))"
+
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
     s3_url = get_json(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
+
     for (k,v) in get(obj, :mappings, Dict())
         @info "`get_dataset` (dataset id=$(repr(obj.id))) rename! $k => $v"
-        rename!(df, k => v)
+        if k != "tstep"
+            rename!(df, k => v)
+        else
+            rename!(df, v => "timestamp") # hack to get df in our "schema"
+        end
     end
-    obj.mappings["tstep"] in names(df) && rename!(df, obj.mappings["tstep"] => "timestamp")  # hack to get df in our "schema"
+
     @info "get_dataset (id=$(repr(obj.id))) with names: $(names(df))"
     return df
 end
