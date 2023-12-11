@@ -272,31 +272,6 @@ function solve(o::Calibrate; callback)
 end
 
 #-----------------------------------------------------------------------------# Ensemble
-# joshday: What is different between simulate and calibrate for ensemble?
-
-struct Ensemble{T<:Operation} <: Operation
-    model_ids::Vector{String}
-    operations::Vector{T}
-    weights::Vector{Float64}
-    sol_mappings::Vector{JSON3.Object}
-    df::Union{Nothing, DataFrame} # for calibrate only
-end
-
-function Ensemble{T}(o::OperationRequest) where {T}
-    model_ids = map(x -> x.id, o.obj.model_configs)
-    weights = map(x -> x.weight, o.obj.model_configs)
-    sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
-    df = o.df # we get one set of data for ensemble calibration
-    operations = map(o.models) do model
-        temp = OperationRequest()
-        temp.df = df
-        temp.timespan = o.timespan
-        temp.model = model
-        temp.obj = o.obj
-        T(temp)
-    end
-    Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
-end
 struct EnsembleSimulate <: Operation
     model_ids::Vector{String}
     systems::Dict{String,ODESystem}
