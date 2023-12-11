@@ -253,7 +253,7 @@ end
         o.models = amrs
         o.timespan = (0,40)
         o.df = sim_en_sol
-        en_cal = Ensemble{Calibrate}(o)
+        en_cal = SimulationService.EnsembleCalibrate(o)
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
         @test cal_sol[!,:Weights] ≈ [0.3333333333333333,0.6666666666666666]
 
