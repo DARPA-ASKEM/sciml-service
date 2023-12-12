@@ -272,81 +272,96 @@ function solve(o::Calibrate; callback)
 end
 
 #-----------------------------------------------------------------------------# Ensemble
-# joshday: What is different between simulate and calibrate for ensemble?
-
-struct Ensemble{T<:Operation} <: Operation
+struct EnsembleSimulate <: Operation
     model_ids::Vector{String}
-    operations::Vector{T}
-    weights::Vector{Float64}
-    sol_mappings::Vector{JSON3.Object}
-    df::Union{Nothing, DataFrame} # for calibrate only
+    systems::Dict{String,ODESystem}
+    weights::Dict{String,Float64}
+    sol_mappings::Dict{String,JSON3.Object}
+    timespan::Tuple{Float64, Float64}
 end
 
-function Ensemble{T}(o::OperationRequest) where {T}
+function EnsembleSimulate(o::OperationRequest)
     model_ids = map(x -> x.id, o.obj.model_configs)
-    weights = map(x -> x.weight, o.obj.model_configs)
-    sol_mappings = map(x -> x.solution_mappings, o.obj.model_configs)
-    df = o.df # we get one set of data for ensemble calibration
-    operations = map(o.models) do model
-        temp = OperationRequest()
-        temp.df = df
-        temp.timespan = o.timespan
-        temp.model = model
-        temp.obj = o.obj
-        T(temp)
-    end
-    Ensemble{T}(model_ids, operations, weights, sol_mappings, df)
+    dict = Dict(model_ids .=> o.models)
+    systems = Dict([id => SimulationService.amr_get(dict[id], ODESystem) for id in model_ids])
+    weights = Dict(map(x -> x.id => x.weight, o.obj.model_configs))
+    sol_mappings = Dict(map(x -> x.id => x.solution_mappings, o.obj.model_configs))
+    timespan = o.timespan
+
+    EnsembleSimulate(model_ids,systems,weights,sol_mappings,timespan)
 end
 
-function get_callback(o::OperationRequest, ::Type{Ensemble{Simulate}})
+struct EnsembleCalibrate <: Operation
+    model_ids::Vector{String}
+    systems::Dict{String,ODESystem}
+    sol_mappings::Dict{String,JSON3.Object}
+    timespan::Tuple{Float64, Float64}
+    df::DataFrame
+end
+
+# need to finish
+function EnsembleCalibrate(o::OperationRequest)
+    model_ids = map(x -> x.id, o.obj.model_configs)
+    dict = Dict(model_ids .=> o.models)
+    systems = Dict([id => SimulationService.amr_get(dict[id], ODESystem) for id in model_ids])
+    sol_mappings = Dict(map(x -> x.id => x.solution_mappings, o.obj.model_configs))
+    timespan = o.timespan
+    df = o.df
+
+    EnsembleCalibrate(model_ids,systems,sol_mappings,timespan,df)
+end
+
+function get_callback(o::OperationRequest, ::Type{EnsembleSimulate})
     nothing
 end
 
-function get_callback(o::OperationRequest, ::Type{Ensemble{Calibrate}})
+function get_callback(o::OperationRequest, ::Type{EnsembleCalibrate})
     nothing
 end
 
 # Solves multiple ODEs, performs a weighted sum
 # of the solutions.
-function SimulationService.solve(o::Ensemble{Simulate}; callback)
-    systems = [sim.sys for sim in o.operations]
-    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
+function solve(o::EnsembleSimulate; callback)
+    systems = o.systems
+    model_ids = o.model_ids
+
+    probs = Dict([id => ODEProblem(systems[id], [], o.timespan) for id in model_ids])
     
-    sols = [solve(prob; saveat = 1, callback) for prob in probs]
+    sols = Dict([id => solve(probs[id]; saveat = 1, callback) for id in model_ids])
 
     # Associate the name in sol_mappings with the right state/observable
-    mappy = Dict(map(sols,o.sol_mappings,systems) do sol, mappings, sys
-        sys.name => Dict([k => sol[getproperty(sys, Symbol(v))]  for (k,v) in mappings])
-    end)
+    map_to_state = Dict([id => Dict([k => sols[id][getproperty(systems[id],Symbol(v))] for (k,v) in o.sol_mappings[id]]) for id in model_ids])
     
     weights = o.weights
 
-    data = [k => reduce(+ , weights .* [model_data_dict[k] for model_data_dict in values(mappy)]) for (k,v) in o.sol_mappings[1]]
+    # the keys for all solution mappings should be the same
+    sol_mappings_keys = keys(o.sol_mappings[o.model_ids[1]])
 
-    DataFrame(:timestamp => sols[1].t, data...)
+    data = [k => reduce(+ , [weights[id] .* map_to_state[id][k] for id in o.model_ids]) for k in sol_mappings_keys]
+
+    DataFrame(:timestamp => sols[model_ids[1]].t, data...)
 end
 
+function solve(o::EnsembleCalibrate; callback)
+    systems = o.systems
+    model_ids = o.model_ids
+    df = o.df
 
-function solve(o::Ensemble{Calibrate}; callback)
-    systems = [sim.sys for sim in o.operations]
-    probs = ODEProblem.(systems, Ref([]), Ref(o.operations[1].timespan))
-
-    sol_maps = o.sol_mappings[1]
-    enprob = EasyModelAnalysis.EnsembleProblem(probs)
-    sol = solve(enprob; saveat = 1, callback);
+    probs = Dict([id => ODEProblem(systems[id], [], o.timespan) for id in model_ids])
     
+    enprob = EasyModelAnalysis.EnsembleProblem([probs[id] for id in model_ids])
+
+    sol = solve(enprob; saveat = 1, callback);
+
     data = o.df 
 
     sol_maps_for_cal = Symbol.(names(data))
 
-    
-    datacal_pairs = [state => data[!,first(values(state.metadata))[2]] for state in states(systems[1]) if first(values(state.metadata))[2] in sol_maps_for_cal]
+    datacal_pairs = [state => data[!,first(values(state.metadata))[2]] for state in states(systems[o.model_ids[1]]) if first(values(state.metadata))[2] in sol_maps_for_cal]
 
     weights  = EasyModelAnalysis.ensemble_weights(sol,datacal_pairs)
     DataFrame("Weights" => weights)
 end
-
-
 
 # struct Ensemble <: Operation
 #     sys::Vector{ODESystem}
@@ -387,8 +402,8 @@ end
 const route2operation_type = Dict(
     "simulate" => Simulate,
     "calibrate" => Calibrate,
-    "ensemble-simulate" => Ensemble{Simulate},
-    "ensemble-calibrate" => Ensemble{Calibrate}
+    "ensemble-simulate" => EnsembleSimulate,
+    "ensemble-calibrate" => EnsembleCalibrate
 )
 
 function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})

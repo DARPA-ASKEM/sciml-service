@@ -9,7 +9,7 @@ using Oxygen
 using SciMLBase: solve
 using Test
 using SimulationService
-using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, Ensemble, get_json
+using SimulationService: DataServiceModel, OperationRequest, Simulate, Calibrate, get_json
 
 SimulationService.ENABLE_TDS[] = false
 SimulationService.RABBITMQ_ENABLED[] = false
@@ -207,12 +207,12 @@ end
         )
 
         # create ensemble-simulte
-        o = OperationRequest()
+        o = SimulationService.OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        en = Ensemble{Simulate}(o)
+        en = SimulationService.EnsembleSimulate(o)
 
         sim_en_sol = SimulationService.solve(en, callback = nothing)
 
@@ -229,22 +229,20 @@ end
         
         obj = (
             model_configs = map(1:2) do i
-                (id="model_config_id_$i", weight = (3-i) / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
             end,
             models = amrs,
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
-
         # do ensemble-simulate
         o = OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
         o.models = amrs
         o.timespan = (0,40)
-        en = Ensemble{Simulate}(o)
-
+        en = SimulationService.EnsembleSimulate(o)
         sim_en_sol = SimulationService.solve(en, callback = nothing)
         # create ensemble-calibrate
         o = OperationRequest()
@@ -253,7 +251,7 @@ end
         o.models = amrs
         o.timespan = (0,40)
         o.df = sim_en_sol
-        en_cal = Ensemble{Calibrate}(o)
+        en_cal = SimulationService.EnsembleCalibrate(o)
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
         @test cal_sol[!,:Weights] ≈ [0.3333333333333333,0.6666666666666666]
 
