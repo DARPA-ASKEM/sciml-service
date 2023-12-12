@@ -218,14 +218,14 @@ end
 
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
-    obj::JSON3.Object = JSON3.Object()                     # untouched JSON from request sent by HMI
-    id::String = "sciml-$(UUIDs.uuid4())"                  # matches DataServiceModel :id
-    route::String = "unknown"                              # :simulate, :calibrate, etc.
-    model::Union{Nothing, JSON3.Object} = nothing          # ASKEM Model Representation (AMR)
-    models::Union{Nothing, Vector{JSON3.Object}} = nothing # Multiple models (in AMR)
-    timespan::Union{Nothing, NTuple{2, Float64}} = nothing # (start, end)
-    df::Union{Nothing, DataFrame} = nothing                # dataset (calibrate only)
-    result::Any = nothing                                  # store result of job
+    obj::JSON3.Object = JSON3.Object()                      # untouched JSON from request sent by HMI
+    id::String = "sciml-$(UUIDs.uuid4())"                   # matches DataServiceModel :id
+    route::String = "unknown"                               # :simulate, :calibrate, etc.
+    model::Union{Nothing, JSON3.Object} = nothing           # ASKEM Model Representation (AMR)
+    models::Union{Nothing, Vector{JSON3.Object}} = nothing  # Multiple models (in AMR)
+    timespan::Union{Nothing, NTuple{2, Float64}} = nothing  # (start, end)
+    df::Union{Nothing, DataFrame} = nothing                 # dataset (calibrate only)
+    result::Any = nothing                                   # store result of job
 end
 
 function get_callback(o::OperationRequest)
