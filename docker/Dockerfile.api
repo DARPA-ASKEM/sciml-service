@@ -8,7 +8,7 @@ COPY Manifest.toml /sciml-service/
 RUN julia -e 'using Pkg; Pkg.instantiate();'
 RUN julia -e 'using Pkg; Pkg.build("PackageCompiler")'
 COPY src/ /sciml-service/src/
-COPY examples/ /sciml-service/examples/
+# COPY examples/ /sciml-service/examples/
 RUN apt update && \
     apt install -y clang && \
     apt clean -y
