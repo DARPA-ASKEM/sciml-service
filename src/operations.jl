@@ -405,6 +405,7 @@ const route2operation_type = Dict(
     "ensemble-calibrate" => EnsembleCalibrate
 )
 
+# modified from EasyModelAnalysis.jl
 function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
     p = Pair.(pkeys, pvals)
     ts = first.(last.(data))
@@ -422,6 +423,7 @@ function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
 end
 
 # assumes data is given in the form column_label => data, need sol_mappings to be of form column_label => observable
+# modified from EasyModelAnalysis.jl
 function ensemble_weights(sol::SciMLBase.EnsembleSolution, data_ensem, sol_mappings_list)
     col = first.(data_ensem)
     predictions = reduce(vcat, reduce(hcat,[sol[i][Symbol(sol_mappings_list[i][s])] for i in 1:length(sol)]) for s in col)
