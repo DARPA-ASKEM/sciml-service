@@ -222,21 +222,21 @@ end
     end
 
     @testset "ensemble-calibrate" begin
-        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"),
-        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json")]
-       
-        amrs = amrfiles
-        
+        # more complex ensemble_calibrate
+        amrs = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sirhd.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/seiarhds.json")]
+    
         obj = (
-            model_configs = map(1:2) do i
-                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (I = "I", R = "R", S = "S"))
-            end,
+            model_configs = [
+                (id ="sirhd", weight = 1/3, solution_mappings = (Infected = "Infections", Hospitalizations = "hospitalized_population")),
+                (id = "seirhds", weight = 2/3, solution_mappings = (Infected = "Cases", Hospitalizations = "hospitalized_population"))]
+            ,
             models = amrs,
             timespan = (start = 0, var"end" = 40),
             engine = "sciml",
             extra = (; num_samples = 40)
         )
-        # do ensemble-simulate
+
         o = OperationRequest()
         o.route = "ensemble-simulate"
         o.obj = JSON3.read(JSON3.write(obj))
@@ -244,7 +244,7 @@ end
         o.timespan = (0,40)
         en = SimulationService.EnsembleSimulate(o)
         sim_en_sol = SimulationService.solve(en, callback = nothing)
-        # create ensemble-calibrate
+        # ensemble part
         o = OperationRequest()
         o.route = "ensemble-calibrate"
         o.obj = JSON3.read(JSON3.write(obj))
@@ -253,8 +253,7 @@ end
         o.df = sim_en_sol
         en_cal = SimulationService.EnsembleCalibrate(o)
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
-        @test cal_sol[!,:Weights] ≈ [0.3333333333333333,0.6666666666666666]
-
+        @test cal_sol[!,:sirhd] ≈ [0.3333333333333333] && cal_sol[!,:seirhds] ≈ [0.6666666666666666]
     end
 
     @testset "Real Calibrate Payload" begin

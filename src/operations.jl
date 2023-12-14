@@ -355,12 +355,11 @@ function solve(o::EnsembleCalibrate; callback)
 
     data = o.df 
 
-    sol_maps_for_cal = Symbol.(names(data))
-
-    datacal_pairs = [state => data[!,first(values(state.metadata))[2]] for state in states(systems[o.model_ids[1]]) if first(values(state.metadata))[2] in sol_maps_for_cal]
-
-    weights  = EasyModelAnalysis.ensemble_weights(sol,datacal_pairs)
-    DataFrame("Weights" => weights)
+    data_pairs = [Symbol(name) => data[:,name] for name in names(data)]
+    data_pairs = filter(x -> x[1] != :timestamp ,data_pairs)
+    sol_mappings_list = [o.sol_mappings[id] for id in model_ids]
+    weights  = SimulationService.ensemble_weights(sol,data_pairs,sol_mappings_list)
+    DataFrame(model_ids .=> weights)
 end
 
 # struct Ensemble <: Operation
@@ -406,6 +405,7 @@ const route2operation_type = Dict(
     "ensemble-calibrate" => EnsembleCalibrate
 )
 
+# modified from EasyModelAnalysis.jl
 function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
     p = Pair.(pkeys, pvals)
     ts = first.(last.(data))
@@ -420,4 +420,13 @@ function sciml_service_l2loss(pvals, (prob, pkeys, data)::Tuple{Vararg{Any, 3}})
         tot_loss += sum((sol(ts[i]; idxs = datakeys[i]) .- timeseries[i]) .^ 2)
     end
     return tot_loss, sol, ts
+end
+
+# assumes data is given in the form column_label => data, need sol_mappings to be of form column_label => observable
+# modified from EasyModelAnalysis.jl
+function ensemble_weights(sol::SciMLBase.EnsembleSolution, data_ensem, sol_mappings_list)
+    col = first.(data_ensem)
+    predictions = reduce(vcat, reduce(hcat,[sol[i][Symbol(sol_mappings_list[i][s])] for i in 1:length(sol)]) for s in col)
+    data = reduce(vcat, [data_ensem[i][2] isa Tuple ? data_ensem[i][2][2] : data_ensem[i][2] for i in 1:length(data_ensem)])
+    weights = predictions \ data 
 end
