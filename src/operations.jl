@@ -351,13 +351,13 @@ function solve(o::EnsembleCalibrate; callback)
     
     enprob = EasyModelAnalysis.EnsembleProblem([probs[id] for id in model_ids])
 
-    sol = solve(enprob; saveat = 1, callback);
-
     data = o.df 
 
     data_pairs = [Symbol(name) => data[:,name] for name in names(data)]
-    data_pairs = filter(x -> x[1] != :timestamp ,data_pairs)
+    t_stamps = filter(x -> x[1] == :timestamp, data_pairs)
+    data_pairs = filter(x -> x[1] != :timestamp, data_pairs)
     sol_mappings_list = [o.sol_mappings[id] for id in model_ids]
+    sol = solve(enprob; saveat = t_stamps[1][2], callback);
     weights  = SimulationService.ensemble_weights(sol,data_pairs,sol_mappings_list)
     DataFrame(model_ids .=> weights)
 end
