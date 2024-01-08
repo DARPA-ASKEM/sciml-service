@@ -49,6 +49,8 @@ const PORT = Ref{Int}()
 # Terrarium Data Service (TDS)
 const ENABLE_TDS = Ref{Bool}()
 const TDS_URL = Ref{String}()
+const TDS_USER = Ref{String}()
+const TDS_PASSWORD = Ref{String}()
 const TDS_RETRIES = Ref{Int}()
 # RabbitMQ (Note: assumes running on localhost)
 const RABBITMQ_ENABLED = Ref{Bool}()
@@ -74,6 +76,8 @@ function __init__()
     PORT[] = parse(Int, get(ENV, "SIMSERVICE_PORT", "8080"))
     ENABLE_TDS[] = get(ENV, "SIMSERVICE_ENABLE_TDS", "true") == "true"
     TDS_URL[] = get(ENV, "SIMSERVICE_TDS_URL", "http://localhost:8001")
+    TDS_USER[] = get(ENV, "SIMSERVICE_TDS_USER", "user")
+    TDS_PASSWORD[] = get(ENV, "SIMSERVICE_TDS_PASSWORD", "password")
     TDS_RETRIES[] = parse(Int, get(ENV, "SIMSERVICE_TDS_RETRIES", "10"))
     RABBITMQ_ENABLED[] = get(ENV, "SIMSERVICE_RABBITMQ_ENABLED", "false") == "true" && ENABLE_TDS[]
     RABBITMQ_LOGIN[] = get(ENV, "SIMSERVICE_RABBITMQ_LOGIN", "guest")
@@ -140,9 +144,12 @@ function stop!()
 end
 
 #-----------------------------------------------------------------------------# utils
-json_header = ["Content-Type" => "application/json"]
+json_content_header = "Content-Type" => "application/json"
+snake_case_header = "X-Enable-Snake-Case" => ""
+basic_auth_header = "Authorization" => "Basic $(base64encode("$TDS_USER[]:$TDS_PASSWORD[]"))"
 
-get_json(url::String) = JSON3.read(HTTP.get(url, json_header).body)
+get_json(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header]).body)
+get_json_with_basic_auth(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header, basic_auth_header]).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
@@ -245,7 +252,7 @@ function OperationRequest(req::HTTP.Request, route::String)
 
     # Use custom MQ if specified
     params = HTTP.queryparams(req)
-    if haskey(params, "queue") 
+    if haskey(params, "queue")
         queue_name = params["queue"]
         queue_dict[o.id] = queue_name
         AMQPClient.queue_declare(rabbitmq_channel[], queue_name; passive=true)
@@ -409,14 +416,14 @@ function DataServiceModel(id::String)
     @info "DataServiceModel($(repr(id)))"
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
-    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id"); delays, check)()
+    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header]); delays, check)()
     return JSON3.read(res.body, DataServiceModel)
 end
 
 function get_model(id::String)
     @assert ENABLE_TDS[]
     @info "get_model($(repr(id)))"
-    get_json("$(TDS_URL[])/model_configurations/$id").configuration
+    get_json_with_basic_auth("$(TDS_URL[])/model-configurations/$id", [basic_auth_header]).configuration
 end
 
 function get_dataset(obj::JSON3.Object)
@@ -424,7 +431,7 @@ function get_dataset(obj::JSON3.Object)
     @info "get_dataset with obj = $(JSON3.write(obj))"
 
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
-    s3_url = get_json(tds_url).url
+    s3_url = get_json_with_basic_auth(tds_url).url
     df = CSV.read(download(s3_url), DataFrame)
 
     for (k,v) in get(obj, :mappings, Dict())
@@ -455,7 +462,7 @@ function create(o::OperationRequest)
          @warn "TDS disabled - `create` $o: $body"
          return body
     end
-    HTTP.post("$(TDS_URL[])/simulations/", json_header; body)
+    HTTP.post("$(TDS_URL[])/simulations/", [json_content_header, basic_auth_header]; body)
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
@@ -472,7 +479,7 @@ function update(o::OperationRequest; kw...)
             setproperty!(m, k, v) :
             setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
-    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", json_header; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [json_content_header, basic_auth_header]; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
@@ -502,7 +509,7 @@ function complete(o::OperationRequest)
     end
 
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
-    s3_url = get_json(tds_url).url
+    s3_url = get_json_with_basic_auth(tds_url).url
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
 
@@ -559,7 +566,7 @@ get(ENV, "SIMSERVICE_PRECOMPILE", "true") == "true" && include("precompile.jl")
 
 #-----------------------------------------------------------------------------# PackageCompilers.jl entry
 function julia_main()::Cint
-    start!(); 
+    start!();
     while true sleep(10000) end
     return 0
 end
