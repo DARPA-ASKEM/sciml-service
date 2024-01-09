@@ -502,7 +502,7 @@ function complete(o::OperationRequest)
         # everything else as JSON file
         body = JSON3.write(o.result)
         filename = "result.json"
-        header = json_header
+        header = json_content_header
     end
     if !ENABLE_TDS[]
         @warn "TDS disabled - `complete` $o: summary(body) = $(summary(body))"
