@@ -147,7 +147,7 @@ end
 #-----------------------------------------------------------------------------# utils
 json_content_header = "Content-Type" => "application/json"
 snake_case_header = "X-Enable-Snake-Case" => ""
-basic_auth_header = "Authorization" => "Basic $(base64encode("$TDS_USER[]:$TDS_PASSWORD[]"))"
+basic_auth_header = "Authorization" => "Basic $(Base64.base64encode("$TDS_USER[]:$TDS_PASSWORD[]"))"
 
 get_json(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header]).body)
 get_json_with_basic_auth(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header, basic_auth_header]).body)
