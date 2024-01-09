@@ -4,6 +4,7 @@ import PrecompileTools: @recompile_invalidations, @compile_workload
 
 @recompile_invalidations begin
 import AMQPClient
+import Base64
 import CSV
 import DataFrames: DataFrame, names, rename!
 import Dates: Dates, DateTime, now, UTC
