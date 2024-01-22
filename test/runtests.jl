@@ -24,7 +24,8 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 simulate_payloads = JSON3.write.([
     (configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json", timespan = (; start=0, var"end"=100)),
-])
+    (model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json", timespan = (; start=0, var"end"=100)),
+    (model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_rabbits_wolves_regnet.json", timespan = (; start=0, var"end"=100))])
 
 calibrate_payloads = JSON3.write.([
     let
@@ -43,12 +44,25 @@ simulate_ensemble_payloads = JSON3.write.([
         model_configs = map(1:2) do i
             (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
         end,
-        model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json",
-        "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json"],
+        model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json",
+        "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"],
         timespan = (start = 0, var"end" = 40),
         engine = "sciml",
         extra = (; num_samples = 40)
-    )])
+    )
+    #,
+    #(
+    #    model_configs = map(1:2) do i
+    #        (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (any_generic = "I", name = "R", s = "S"))
+    #    end,
+    #    model_file_urls = ["https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json",
+    #    "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json"],
+    #    timespan = (start = 0, var"end" = 40),
+    #    engine = "sciml",
+    #    extra = (; num_samples = 40)
+    #)
+    
+    ])
 
 calibrate_ensemble_payloads = JSON3.write.([(
             model_configs = map(1:2) do i
@@ -69,7 +83,7 @@ calibrate_ensemble_payloads = JSON3.write.([(
 end
 
 #-----------------------------------------------------------------------------# AMR parsing
-@testset "AMR parsing" begin
+@testset "Petrinet AMR parsing" begin
     amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
     sys = SimulationService.amr_get(amr.configuration, ODESystem)
     @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
@@ -88,6 +102,28 @@ end
     @test all(all.(map(first.(last.(data))) do x; x .== 0:89; end))
 end
 
+@testset "Stock and Flow AMR parsing" begin
+    amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json").body)
+    sys = SimulationService.amr_get(amr, ODESystem)
+    @test string.(states(sys)) == ["S(t)", "I(t)", "R(t)"]
+    @test string.(parameters(sys)) == ["p_cbeta","p_N", "p_tr"]
+
+    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+
+    amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json").body)
+    sys = SimulationService.amr_get(amr, ODESystem)
+
+    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+end
+
+@testset "RegNet AMR parsing" begin
+    amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_sheep_foxes_regnet.json").body)
+    sys = SimulationService.amr_get(amr, ODESystem)
+    @test string.(states(sys)) == ["S(t)", "F(t)"]
+    @test string.(parameters(sys)) == ["beta","delta", "alpha","gamma"]
+
+    priors = SimulationService.amr_get(amr, sys, Val(:priors))
+end
 #-----------------------------------------------------------# DataServiceModel and OperationRequest
 @testset "DataServiceModel and OperationRequest" begin
     @testset "DataServiceModel" begin
@@ -146,9 +182,29 @@ end
 
     json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
     sidarthe_model = SimulationService.get_json(json_url).configuration
-    @testset "simulate" begin
+    @testset "simulate petrinet" begin
         json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"
         obj = SimulationService.get_json(json_url).configuration
+        sys = SimulationService.amr_get(obj, ODESystem)
+        op = Simulate(sys, (0.0, 99.0))
+        df = solve(op; callback = nothing)
+        @test df isa DataFrame
+        @test extrema(df.timestamp) == (0.0, 99.0)
+    end
+
+    @testset "simulate stock and flow" begin
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json"
+        obj = SimulationService.get_json(json_url)
+        sys = SimulationService.amr_get(obj, ODESystem)
+        op = Simulate(sys, (0.0, 99.0))
+        df = solve(op; callback = nothing)
+        @test df isa DataFrame
+        @test extrema(df.timestamp) == (0.0, 99.0)
+    end
+
+    @testset "simulate regnet" begin
+        json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_sheep_foxes_regnet.json"
+        obj = SimulationService.get_json(json_url)
         sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
         df = solve(op; callback = nothing)
@@ -189,7 +245,7 @@ end
         @test names(dfparam) == string.(parameters(sys))
     end
         
-    @testset "ensemble-simulate" begin
+    @testset "ensemble-simulate petrinet" begin
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json")]
        
@@ -220,8 +276,38 @@ end
         @test names(sim_en_sol) == ["timestamp","Infected","Recovered","Susceptible"]
 
     end
+    @testset "ensemble-simulate stockflow" begin
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_stockflow.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json")]
+       
+        
+        amrs = amrfiles
+        
+        obj = (
+            model_configs = map(1:2) do i
+                (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (Infected = "I", Recovered = "R", Susceptible = "S"))
+            end,
+            models = amrs,
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
 
-    @testset "ensemble-calibrate" begin
+        # create ensemble-simulte
+        o = SimulationService.OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrs
+        o.timespan = (0,40)
+        en = SimulationService.EnsembleSimulate(o)
+
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
+
+        # bad test, need something better
+        @test names(sim_en_sol) == ["timestamp","Infected","Recovered","Susceptible"]
+
+    end
+    @testset "ensemble-calibrate petrinet" begin
         # more complex ensemble_calibrate
         amrs = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sirhd.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/seiarhds.json")]
@@ -255,6 +341,43 @@ end
         cal_sol = SimulationService.solve(en_cal,callback = nothing)
         @test cal_sol[!,:sirhd] ≈ [0.3333333333333333] && cal_sol[!,:seirhds] ≈ [0.6666666666666666]
     end
+
+    @testset "ensemble-calibrate stockflow" begin
+        # more complex ensemble_calibrate
+        amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_stockflow.json"),
+        SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json")]
+       
+    
+        obj = (
+            model_configs = [
+                (id ="seir", weight = 1/3, solution_mappings = (Infected = "I", Recovered = "R")),
+                (id = "sir", weight = 2/3, solution_mappings = (Infected = "I", Recovered = "R"))]
+            ,
+            models = amrfiles,
+            timespan = (start = 0, var"end" = 40),
+            engine = "sciml",
+            extra = (; num_samples = 40)
+        )
+
+        o = OperationRequest()
+        o.route = "ensemble-simulate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrfiles
+        o.timespan = (0,40)
+        en = SimulationService.EnsembleSimulate(o)
+        sim_en_sol = SimulationService.solve(en, callback = nothing)
+        # ensemble part
+        o = OperationRequest()
+        o.route = "ensemble-calibrate"
+        o.obj = JSON3.read(JSON3.write(obj))
+        o.models = amrfiles
+        o.timespan = (0,40)
+        o.df = sim_en_sol
+        en_cal = SimulationService.EnsembleCalibrate(o)
+        cal_sol = SimulationService.solve(en_cal,callback = nothing)
+        @test cal_sol[!,:seir] ≈ [0.3333333333333333] && cal_sol[!,:sir] ≈ [0.6666666666666666]
+    end
+
 
     @testset "Real Calibrate Payload" begin
         json_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json"

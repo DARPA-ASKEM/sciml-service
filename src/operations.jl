@@ -5,7 +5,29 @@
 
 
 # Get `ModelingToolkit.ODESystem` from AMR
-function amr_get(amr::JSON3.Object, ::Type{ODESystem})
+
+function amr_get(amr::JSON3.Object,::Type{ODESystem})
+        schema_url = amr.header.schema
+        if contains(schema_url,"petrinet_schema")
+            return amr_get_petrinet(amr)
+        elseif contains(schema_url, "stockflow_schema")
+            return amr_get_stockflow(amr)
+        elseif  contains(schema_url,"regnet_schema")
+            return amr_get_regnet(amr)
+        end
+end
+
+function amr_get_stockflow(amr::JSON3.Object)
+    model = parse_askem_model(amr, ASKEMStockFlow)
+    ASKEM_ACSet_to_MTK(model)
+end
+
+function amr_get_regnet(amr::JSON3.Object)
+    model = parse_askem_model(amr, ASKEMRegNetUntyped)
+    ASKEM_ACSet_to_MTK(model)
+end
+
+function amr_get_petrinet(amr::JSON3.Object)
     @info "amr_get ODESystem"
     model = amr.model
     ode = amr.semantics.ode
@@ -72,29 +94,67 @@ function amr_get(amr::JSON3.Object, sys::ODESystem, ::Val{:priors})
     paramlist = EasyModelAnalysis.ModelingToolkit.parameters(sys)
     namelist = nameof.(paramlist)
 
-    priors = map(amr.semantics.ode.parameters) do p
-        if haskey(p, :distribution)
-            # Assumption: only fit parameters which have a distribution / bounds
-            if p.distribution.type != "StandardUniform1" && p.distribution.type != "Uniform1"
-                @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
-            end
+    # this is silly, but some of the models don't have an amr.semantics.ode
+    if haskey(amr, :semantics)
+        priors = map(amr.semantics.ode.parameters) do p
+            if haskey(p, :distribution)
+                # Assumption: only fit parameters which have a distribution / bounds
+                if p.distribution.type != "StandardUniform1" && p.distribution.type != "Uniform1"
+                    @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
+                end
 
-            minval = if p.distribution.parameters.minimum isa Number
-                p.distribution.parameters.minimum
-            elseif p.distribution.parameters.minimum isa AbstractString
-                @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
-                parse(Float64, p.distribution.parameters.minimum)
-            end
+                minval = if p.distribution.parameters.minimum isa Number
+                    p.distribution.parameters.minimum
+                elseif p.distribution.parameters.minimum isa AbstractString
+                    @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
+                    parse(Float64, p.distribution.parameters.minimum)
+                end
 
-            maxval = if p.distribution.parameters.maximum isa Number
-                p.distribution.parameters.maximum
-            elseif p.distribution.parameters.maximum isa AbstractString
-                @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
-                parse(Float64, p.distribution.parameters.maximum)
-            end
+                maxval = if p.distribution.parameters.maximum isa Number
+                    p.distribution.parameters.maximum
+                elseif p.distribution.parameters.maximum isa AbstractString
+                    @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
+                    parse(Float64, p.distribution.parameters.maximum)
+                end
 
-            dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
-            paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+                dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
+
+                param = findfirst(x->x==Symbol(p.id),namelist)
+                
+                if !isnothing(param)
+                    paramlist[param] => dist
+                end
+            end
+        end
+    else
+        initial_names = [vertex[:initial] for vertex in amr[:model][:vertices]]
+        
+        priors = map(amr.model.parameters) do p
+            if !in(p[:id], initial_names)
+                if haskey(p, :distribution)
+                    # Assumption: only fit parameters which have a distribution / bounds
+                    if p.distribution.type != "StandardUniform1" && p.distribution.type != "Uniform1"
+                        @info "Invalid distribution type! Distribution type was $(p.distribution.type)"
+                    end
+
+                    minval = if p.distribution.parameters.minimum isa Number
+                        p.distribution.parameters.minimum
+                    elseif p.distribution.parameters.minimum isa AbstractString
+                        @info "String in distribution minimum: $(p.distribution.parameters.minimum)"
+                        parse(Float64, p.distribution.parameters.minimum)
+                    end
+
+                    maxval = if p.distribution.parameters.maximum isa Number
+                        p.distribution.parameters.maximum
+                    elseif p.distribution.parameters.maximum isa AbstractString
+                        @info "String in distribution maximum: $(p.distribution.parameters.maximum)"
+                        parse(Float64, p.distribution.parameters.maximum)
+                    end
+
+                    dist = EasyModelAnalysis.Distributions.Uniform(minval, maxval)
+                    paramlist[findfirst(x->x==Symbol(p.id),namelist)] => dist
+                end
+            end
         end
     end
     priors = filter(!isnothing, priors)

@@ -9,7 +9,7 @@ import DataFrames: DataFrame, names, rename!
 import Dates: Dates, DateTime, now, UTC
 import DifferentialEquations
 import Downloads: download
-import Distributions: Uniform
+import Distributions
 import EasyModelAnalysis
 import HTTP
 import InteractiveUtils: subtypes
@@ -29,6 +29,9 @@ import SymbolicUtils
 import UUIDs
 import YAML
 import Statistics
+import MLStyle
+import Catlab
+import RegNets
 end
 
 export start!, stop!
@@ -553,7 +556,8 @@ end
 
 #---------------------------------------------------------------------------s--# operations.jl
 include("operations.jl")
-
+include("model_parsers/RegNets.jl")
+include("model_parsers/StockFlow.jl")
 get(ENV, "SIMSERVICE_PRECOMPILE", "true") == "true" && include("precompile.jl")
 
 
