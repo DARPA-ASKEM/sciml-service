@@ -18,6 +18,7 @@ version = "0.2.12"
     XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
     nauty_jll = "55c6dc9b-343a-50ca-8ff2-b71adb3733d5"
 
+
 [[deps.ADTypes]]
 git-tree-sha1 = "41c37aa88889c171f1300ceac1313c06e891d245"
 uuid = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -2084,6 +2085,7 @@ deps = ["Combinatorics", "LinearAlgebra", "Random"]
 git-tree-sha1 = "c7745750b8a829bc6039b7f1f0981bcda526a946"
 uuid = "2ae35dd2-176d-5d53-8349-f30d82d94d4f"
 version = "0.4.19"
+
 
 [[deps.Pipe]]
 git-tree-sha1 = "6842804e7867b115ca9de748a0cf6b364523c16d"
