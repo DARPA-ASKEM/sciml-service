@@ -424,7 +424,8 @@ end
 function get_model(id::String)
     @assert ENABLE_TDS[]
     @info "get_model($(repr(id)))"
-    get_json_with_basic_auth("$(TDS_URL[])/model-configurations/$id", [basic_auth_header]).configuration
+    tds_url = "$(TDS_URL[])/model-configurations/$id"
+    get_json_with_basic_auth(tds_url).configuration
 end
 
 function get_dataset(obj::JSON3.Object)
