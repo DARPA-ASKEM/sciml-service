@@ -150,9 +150,10 @@ end
 #-----------------------------------------------------------------------------# utils
 json_content_header = "Content-Type" => "application/json"
 snake_case_header = "X-Enable-Snake-Case" => ""
-basic_auth_header = "Authorization" => "Basic $(Base64.base64encode("$TDS_USER[]:$TDS_PASSWORD[]"))"
+encoded_credentials = Base64.base64encode("$TDS_USER[]:$TDS_PASSWORD[]")
+basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-get_json(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header]).body)
+get_json(url::String) = JSON3.read(HTTP.get(url, json_content_header).body)
 get_json_with_basic_auth(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header, basic_auth_header]).body)
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
@@ -230,7 +231,7 @@ end
 #-----------------------------------------------------------------------------# OperationRequest
 Base.@kwdef mutable struct OperationRequest
     obj::JSON3.Object = JSON3.Object()                      # untouched JSON from request sent by HMI
-    id::String = "sciml-$(UUIDs.uuid4())"                   # matches DataServiceModel :id
+    id::String = "$(UUIDs.uuid4())"                   # matches DataServiceModel :id
     route::String = "unknown"                               # :simulate, :calibrate, etc.
     model::Union{Nothing, JSON3.Object} = nothing           # ASKEM Model Representation (AMR)
     models::Union{Nothing, Vector{JSON3.Object}} = nothing  # Multiple models (in AMR)
@@ -426,6 +427,7 @@ end
 
 function get_model(id::String)
     @assert ENABLE_TDS[]
+    @info "get_model($(repr(id)))"
     @info "get_model($(repr(id)))"
     tds_url = "$(TDS_URL[])/model-configurations/$id"
     get_json_with_basic_auth(tds_url).configuration
