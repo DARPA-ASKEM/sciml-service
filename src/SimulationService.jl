@@ -166,11 +166,9 @@ end
 #-----------------------------------------------------------------------------# utils
 json_content_header = "Content-Type" => "application/json"
 snake_case_header = "X-Enable-Snake-Case" => ""
-encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
 get_json(url::String) = JSON3.read(HTTP.get(url, [json_content_header]).body)
-get_json_with_basic_auth(url::String) = JSON3.read(HTTP.get(url, [json_content_header, snake_case_header, basic_auth_header]).body)
+
 
 timestamp() = Dates.format(now(), "yyyy-mm-ddTHH:MM:SS")
 
@@ -446,7 +444,11 @@ function get_model(id::String)
     @info "get_model($(repr(id)))"
     @info "get_model($(repr(id)))"
     tds_url = "$(TDS_URL[])/model-configurations/$id"
-    get_json_with_basic_auth(tds_url).configuration
+
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
+    JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).configuration
 end
 
 function get_dataset(obj::JSON3.Object)
@@ -454,7 +456,10 @@ function get_dataset(obj::JSON3.Object)
     @info "get_dataset with obj = $(JSON3.write(obj))"
 
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
-    s3_url = get_json_with_basic_auth(tds_url).url
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
+    s3_url = JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).url
     df = CSV.read(download(s3_url), DataFrame)
 
     for (k,v) in get(obj, :mappings, Dict())
@@ -532,7 +537,11 @@ function complete(o::OperationRequest)
     end
 
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
-    s3_url = get_json_with_basic_auth(tds_url).url
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
+    s3_url = JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).url
+
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
 
