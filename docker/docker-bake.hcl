@@ -39,7 +39,7 @@ group "default" {
 
 # Removed linux/arm64 for now to ass CI build - Dec 2022
 target "_platforms" {
-  platforms = ["linux/amd64"]
+  platforms = ["linux/arm64"]
 }
 
 target "sciml-service-base" {
