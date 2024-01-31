@@ -118,9 +118,9 @@ function start!(; host=HOST[], port=PORT[], kw...)
     @info "-----------------------"
     @info "Env Info: "
     @info "ENABLE_TDS = $ENABLE_TDS[]"
-    @info "TDS_URL = $TDS_URL[]"
-    @info "TDS_USER = $TDS_USER[]"
-    @info "TDS_PASSWORD = $TDS_PASSWORD[]"
+    @info "TDS_URL = $(TDS_URL[])"
+    @info "TDS_USER = $(TDS_USER[])"
+    @info "TDS_PASSWORD = $(TDS_PASSWORD[])"
     @info "TDS_RETRIES = $TDS_RETRIES[]"
     @info "RABBITMQ_ENABLED = $RABBITMQ_ENABLED[]"
     @info "RABBITMQ_ROUTE = $RABBITMQ_ROUTE[]"
@@ -166,7 +166,7 @@ end
 #-----------------------------------------------------------------------------# utils
 json_content_header = "Content-Type" => "application/json"
 snake_case_header = "X-Enable-Snake-Case" => ""
-encoded_credentials = Base64.base64encode("$TDS_USER[]:$TDS_PASSWORD[]")
+encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
 basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
 get_json(url::String) = JSON3.read(HTTP.get(url, [json_content_header]).body)
