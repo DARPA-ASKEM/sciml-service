@@ -114,6 +114,22 @@ end
 #-----------------------------------------------------------------------------# start!
 function start!(; host=HOST[], port=PORT[], kw...)
     @info "starting server on $host:$port.  nthreads=$(Threads.nthreads())"
+
+    @info "-----------------------"
+    @info "Env Info: "
+    @info "ENABLE_TDS = $ENABLE_TDS[]"
+    @info "TDS_URL = $TDS_URL[]"
+    @info "TDS_USER = $TDS_USER[]"
+    @info "TDS_PASSWORD = $TDS_PASSWORD[]"
+    @info "TDS_RETRIES = $TDS_RETRIES[]"
+    @info "RABBITMQ_ENABLED = $RABBITMQ_ENABLED[]"
+    @info "RABBITMQ_ROUTE = $RABBITMQ_ROUTE[]"
+    @info "RABBITMQ_HOST = $RABBITMQ_HOST[]"
+    @info "RABBITMQ_PORT = $RABBITMQ_PORT[]"
+    @info "RABBITMQ_SSL = $RABBITMQ_SSL[]"
+    @info "-----------------------"
+
+
     ENABLE_TDS[] || @warn "TDS is disabled.  Some features will not work."
     stop!()  # Stop server if it's already running
     server_url[] = "http://$host:$port"
