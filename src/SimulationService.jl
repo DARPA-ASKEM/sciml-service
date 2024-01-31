@@ -435,6 +435,10 @@ function DataServiceModel(id::String)
     @info "DataServiceModel($(repr(id)))"
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
+
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
     res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header]); delays, check)()
     return JSON3.read(res.body, DataServiceModel)
 end
@@ -490,6 +494,10 @@ function create(o::OperationRequest)
          @warn "TDS disabled - `create` $o: $body"
          return body
     end
+
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
     HTTP.post("$(TDS_URL[])/simulations/", [json_content_header, basic_auth_header]; body)
 end
 
@@ -507,6 +515,10 @@ function update(o::OperationRequest; kw...)
             setproperty!(m, k, v) :
             setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
+
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
+
     HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [json_content_header, basic_auth_header]; body=JSON3.write(m))
 end
 
