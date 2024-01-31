@@ -439,7 +439,7 @@ function DataServiceModel(id::String)
     encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
     basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header]); delays, check)()
+    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header, snake_case_header, json_content_header]); delays, check)()
     return JSON3.read(res.body, DataServiceModel)
 end
 
@@ -498,7 +498,7 @@ function create(o::OperationRequest)
     encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
     basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    HTTP.post("$(TDS_URL[])/simulations/", [json_content_header, basic_auth_header]; body)
+    HTTP.post("$(TDS_URL[])/simulations", [json_content_header, basic_auth_header, snake_case_header]; body)
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
@@ -519,7 +519,7 @@ function update(o::OperationRequest; kw...)
     encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
     basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [json_content_header, basic_auth_header]; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [json_content_header, basic_auth_header, snake_case_header]; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
