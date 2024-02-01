@@ -67,7 +67,7 @@ const RABBITMQ_SSL = Ref{Bool}()
 
 const queue_dict = Dict{String, String}()
 
-const basic_auth_header = Ref{String}()
+const basic_auth_header = Ref{Pair{String, String}}()
 
 function __init__()
     if Threads.nthreads() == 1
