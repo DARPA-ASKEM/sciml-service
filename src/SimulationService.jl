@@ -443,7 +443,7 @@ function DataServiceModel(id::String)
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
 
-    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", ["$(basic_auth_header[])", snake_case_header, json_content_header]); delays, check)()
+    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header[], snake_case_header, json_content_header]); delays, check)()
     return JSON3.read(res.body, DataServiceModel)
 end
 
@@ -453,7 +453,7 @@ function get_model(id::String)
     @info "get_model($(repr(id)))"
     tds_url = "$(TDS_URL[])/model-configurations/$id"
 
-    JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).configuration
+    JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body).configuration
 end
 
 function get_dataset(obj::JSON3.Object)
@@ -462,7 +462,7 @@ function get_dataset(obj::JSON3.Object)
 
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
 
-    s3_url = JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).url
+    s3_url = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body).url
     df = CSV.read(download(s3_url), DataFrame)
 
     for (k,v) in get(obj, :mappings, Dict())
@@ -495,7 +495,7 @@ function create(o::OperationRequest)
     end
 
 
-    new_id = JSON3.read(HTTP.post("$(TDS_URL[])/simulations", ["$(basic_auth_header[])", json_content_header, snake_case_header]; body).body).id
+    new_id = JSON3.read(HTTP.post("$(TDS_URL[])/simulations", [basic_auth_header[], json_content_header, snake_case_header]; body).body).id
     o.id = new_id
 end
 
@@ -515,7 +515,7 @@ function update(o::OperationRequest; kw...)
     end
 
 
-    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", ["$(basic_auth_header[])", json_content_header, snake_case_header]; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [basic_auth_header[], json_content_header, snake_case_header]; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
@@ -546,7 +546,7 @@ function complete(o::OperationRequest)
 
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
 
-    s3_url = JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).url
+    s3_url = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body).url
 
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
