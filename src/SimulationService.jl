@@ -347,7 +347,7 @@ Base.@kwdef mutable struct DataServiceModel
     engine::String = "sciml"                                # (ignore) TDS supports multiple engine.  We are the `sciml` engine.
     type::String = ""                                       # :calibration, :calibration_simulation, :ensemble, :simulation
     execution_payload::JSON3.Object = JSON3.Object()        # untouched JSON from request sent by HMI
-    workflow_id::String = nothing                           # (ignore)
+    workflow_id::Union{Nothing, String} = nothing           # (ignore)
     # Optional
     name::Union{Nothing, String} = nothing                  # (ignore)
     description::Union{Nothing, String} = nothing           # (ignore)
