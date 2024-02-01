@@ -67,6 +67,8 @@ const RABBITMQ_SSL = Ref{Bool}()
 
 const queue_dict = Dict{String, String}()
 
+const basic_auth_header = Ref{String}()
+
 function __init__()
     if Threads.nthreads() == 1
         @warn "SimulationService.jl expects `Threads.nthreads() > 1`.  Use e.g. `julia --threads=auto`."
@@ -106,6 +108,11 @@ function __init__()
         rabbitmq_channel[] = AMQPClient.channel(conn, AMQPClient.UNUSED_CHANNEL, true)
         AMQPClient.queue_declare(rabbitmq_channel[], RABBITMQ_ROUTE[];)
     end
+
+    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
+    basic_auth_header[] = "Authorization" => "Basic $encoded_credentials"
+
+
 
     v = Pkg.Types.read_project("Project.toml").version
     @info "__init__ SimulationService with Version = $v"
@@ -436,10 +443,7 @@ function DataServiceModel(id::String)
     check = (_, e) -> e isa HTTP.Exceptions.StatusError && ex.status == 404
     delays = fill(1, TDS_RETRIES[])
 
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
-
-    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", [basic_auth_header, snake_case_header, json_content_header]); delays, check)()
+    res = retry(() -> HTTP.get("$(TDS_URL[])/simulations/$id", ["$(basic_auth_header[])", snake_case_header, json_content_header]); delays, check)()
     return JSON3.read(res.body, DataServiceModel)
 end
 
@@ -449,10 +453,7 @@ function get_model(id::String)
     @info "get_model($(repr(id)))"
     tds_url = "$(TDS_URL[])/model-configurations/$id"
 
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
-
-    JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).configuration
+    JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).configuration
 end
 
 function get_dataset(obj::JSON3.Object)
@@ -460,10 +461,8 @@ function get_dataset(obj::JSON3.Object)
     @info "get_dataset with obj = $(JSON3.write(obj))"
 
     tds_url = "$(TDS_URL[])/datasets/$(obj.id)/download-url?filename=$(obj.filename)"
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    s3_url = JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).url
+    s3_url = JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).url
     df = CSV.read(download(s3_url), DataFrame)
 
     for (k,v) in get(obj, :mappings, Dict())
@@ -495,10 +494,8 @@ function create(o::OperationRequest)
          return body
     end
 
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    new_id = JSON3.read(HTTP.post("$(TDS_URL[])/simulations", [json_content_header, basic_auth_header, snake_case_header]; body).body).id
+    new_id = JSON3.read(HTTP.post("$(TDS_URL[])/simulations", ["$(basic_auth_header[])", json_content_header, snake_case_header]; body).body).id
     o.id = new_id
 end
 
@@ -517,10 +514,8 @@ function update(o::OperationRequest; kw...)
             setproperty!(m, k, Base.nonnothingtype(fieldtype(DataServiceModel, k))(v))
     end
 
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", [json_content_header, basic_auth_header, snake_case_header]; body=JSON3.write(m))
+    HTTP.put("$(TDS_URL[])/simulations/$(o.id)", ["$(basic_auth_header[])", json_content_header, snake_case_header]; body=JSON3.write(m))
 end
 
 function complete(o::OperationRequest)
@@ -550,10 +545,8 @@ function complete(o::OperationRequest)
     end
 
     tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
-    encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
-    basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    s3_url = JSON3.read(HTTP.get(tds_url, [json_content_header, snake_case_header, basic_auth_header]).body).url
+    s3_url = JSON3.read(HTTP.get(tds_url, ["$(basic_auth_header[])", json_content_header, snake_case_header]).body).url
 
     HTTP.put(s3_url, header; body=body)
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
