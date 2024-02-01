@@ -498,7 +498,8 @@ function create(o::OperationRequest)
     encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
     basic_auth_header = "Authorization" => "Basic $encoded_credentials"
 
-    HTTP.post("$(TDS_URL[])/simulations", [json_content_header, basic_auth_header, snake_case_header]; body)
+    new_id = JSON3.read(HTTP.post("$(TDS_URL[])/simulations", [json_content_header, basic_auth_header, snake_case_header]; body)).id
+    o.id = new_id
 end
 
 # update the DataServiceModel in TDS: PUT /simulations/{id}
