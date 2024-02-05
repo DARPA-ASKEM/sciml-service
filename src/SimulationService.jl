@@ -86,6 +86,19 @@ function __init__()
     RABBITMQ_PORT[] = parse(Int, get(ENV, "SIMSERVICE_RABBITMQ_PORT", "5672"))
     RABBITMQ_SSL[] = get(ENV, "SIMSERVICE_RABBITMQ_SSL", "false") == "true"
 
+    @info "- Rabbit Info --------------------------------"
+    @info "RABBITMQ_ENABLED = $(RABBITMQ_ENABLED[])"
+    @info "RABBITMQ_LOGIN = $(RABBITMQ_LOGIN[])"
+    @info "RABBITMQ_PASSWORD = $(RABBITMQ_PASSWORD[])"
+    @info "RABBITMQ_ROUTE = $(RABBITMQ_ROUTE[])"
+    @info "RABBITMQ_HOST = $(RABBITMQ_HOST[])"
+    @info "RABBITMQ_PORT = $(RABBITMQ_PORT[])"
+    @info "RABBITMQ_SSL = $(RABBITMQ_SSL[])"
+    @info "---------------------------------"
+
+
+
+
     if RABBITMQ_ENABLED[]
         auth_params = Dict{String,Any}(
             ("MECHANISM" => "AMQPLAIN", "LOGIN" => RABBITMQ_LOGIN[], "PASSWORD" => RABBITMQ_PASSWORD[])
