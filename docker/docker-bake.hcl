@@ -28,11 +28,11 @@ function "check_suffix" {
 # ----------------------------------------------------------------------------------------------------------------------
 
 group "prod" {
-  targets = ["sciml-service"]
+  targets = ["simulation-service"]
 }
 
 group "default" {
-  targets = ["sciml-service-base"]
+  targets = ["simulation-service-base"]
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -45,12 +45,13 @@ target "_platforms" {
   platforms = ["linux/amd64", "linux/arm64"]
 }
 
-target "sciml-service-base" {
+target "simulation-service-base" {
 	context = "."
-	tags = tag("sciml-service", "", "")
+	tags = tag("simulation-service", "", "")
 	dockerfile = "docker/Dockerfile.api"
 }
 
-target "sciml-service" {
-  inherits = ["sciml-service-base", "docker-metadata-action", "_platforms"]
+# NOTE: target name will be used as the name of the image
+target "simulation-service" {
+  inherits = ["simulation-service-base", "docker-metadata-action", "_platforms"]
 }
