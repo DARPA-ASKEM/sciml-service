@@ -36,10 +36,13 @@ group "default" {
 }
 
 # ----------------------------------------------------------------------------------------------------------------------
+# Used by the metafile GH action
+# DO NOT ADD ANYTHING HERE THIS WILL BE POPULATED DYNAMICALLY
+# MAKE SURE THIS IS INHERITED NEAR THE END SO THAT IT DOES NOT GET OVERRIDEN
+target "docker-metadata-action" {}
 
-# Removed linux/arm64 for now to ass CI build - Dec 2022
 target "_platforms" {
-  platforms = ["linux/amd64"]
+  platforms = ["linux/amd64", "linux/arm64"]
 }
 
 target "sciml-service-base" {
@@ -48,6 +51,7 @@ target "sciml-service-base" {
 	dockerfile = "docker/Dockerfile.api"
 }
 
+# NOTE: target name will be used as the name of the image
 target "sciml-service" {
-  inherits = ["_platforms", "sciml-service-base"]
+  inherits = ["sciml-service-base", "docker-metadata-action", "_platforms"]
 }
