@@ -35,7 +35,7 @@ jobs:
   bake:
     needs:
       - bake-target
-    uses: darpa-askem/sciml-service/.github/workflows/bake-publish-cloud-builder.yaml@main
+    uses: darpa-askem/.github/.github/workflows/bake-publish-cloud-builder.yaml@main
     with:
       file: 'docker/docker-bake.hcl'
       group: ${{ needs.bake-target.outputs.target }}
