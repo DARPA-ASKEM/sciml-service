@@ -79,7 +79,7 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMStockFlow})
     for param in input[:semantics][:ode][:parameters]
         # want to exclude 
         id = Symbol(param[:id])
-        name = Symbol(param[:name])
+        name = haskey(param,:name) ? Symbol(param[:name]) : :nothing
         value = param[:value]
         expr = only((@parameters $id))
         if haskey(param,:distribution)
