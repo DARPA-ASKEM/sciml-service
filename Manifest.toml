@@ -2,7 +2,7 @@
 
 julia_version = "1.10.1"
 manifest_format = "2.0"
-project_hash = "29ea0cf6ff016175aa3d807751ee56634e48191c"
+project_hash = "16611c55e79d8854246798eb5a97f3abbbf54f1a"
 
 [[deps.ACSets]]
 deps = ["AlgebraicInterfaces", "Base64", "CompTime", "DataStructures", "JSON3", "MLStyle", "OrderedCollections", "Permutations", "Pkg", "PrettyTables", "Random", "Reexport", "SHA", "StaticArrays", "StructEquality", "StructTypes", "Tables"]

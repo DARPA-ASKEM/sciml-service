@@ -33,6 +33,7 @@ import Statistics
 import MLStyle
 import Catlab
 import RegNets
+using Latexify
 end
 
 export start!, stop!
@@ -127,6 +128,9 @@ function start!(; host=HOST[], port=PORT[], kw...)
     JobSchedulers.set_scheduler(max_cpu=JobSchedulers.SCHEDULER_MAX_CPU, max_mem=0.5, update_second=0.05, max_job=5000)
     Oxygen.resetstate()
 
+
+    Oxygen.@get     "/model-equation/{id}"  modelEquation
+
     Oxygen.@get     "/health"               health
     Oxygen.@get     "/status/{id}"          job_status
     Oxygen.@post    "/kill/{id}"            job_kill
@@ -213,6 +217,21 @@ function job_kill(::HTTP.Request, id::String)
         return HTTP.Response(200)
     end
 end
+
+# GET /model-equation/{id}
+function modelEquation(::HTTP.Request, id::String)
+    @assert ENABLE_TDS[]
+
+    tds_url = "$(TDS_URL[])/models/$id"
+    model_json = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body)
+    sys = amr_get(model_json, ODESystem)
+
+    model_latex = latexify(sys)
+    return Dict([
+        (:latex, model_latex.s)
+    ])
+end
+
 
 #-----------------------------------------------------------------------------# health: GET /
 function health(::HTTP.Request)
