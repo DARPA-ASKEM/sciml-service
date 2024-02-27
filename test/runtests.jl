@@ -23,9 +23,28 @@ here(x...) = joinpath(dirname(pathof(SimulationService)), "..", x...)
 
 
 simulate_payloads = JSON3.write.([
-    (configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json", timespan = (; start=0, var"end"=100)),
-    (model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json", timespan = (; start=0, var"end"=100)),
-    (model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_rabbits_wolves_regnet.json", timespan = (; start=0, var"end"=100))])
+    (
+        configuration_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json",
+        timespan = (; start=0, var"end"=100)
+    ),
+    (
+        model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json",
+        timespan = (; start=0, var"end"=100)
+    ),
+    (
+        model_file_url = "https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_rabbits_wolves_regnet.json",
+        timespan = (; start=0, var"end"=100)
+    ),
+    # 18-month Hackathon Epi Scenario 4:
+    (
+        model_file_url = "https://raw.githubusercontent.com/gyorilab/mira/main/notebooks/hackathon_2024.02/scenario4/scenario4_4spec_regnet.json",
+        timespan = (; start=0, var"end"=30)
+    ),
+    (
+        model_file_url = "https://raw.githubusercontent.com/gyorilab/mira/main/notebooks/hackathon_2024.02/scenario4/scenario4_6spec_regnet.json",
+        timespan = (; start=0, var"end"=30)
+    )
+    ])
 
 calibrate_payloads = JSON3.write.([
     let
@@ -38,7 +57,7 @@ calibrate_payloads = JSON3.write.([
     end
 ])
 
-        
+
 simulate_ensemble_payloads = JSON3.write.([
     (
         model_configs = map(1:2) do i
@@ -61,7 +80,7 @@ simulate_ensemble_payloads = JSON3.write.([
     #    engine = "sciml",
     #    extra = (; num_samples = 40)
     #)
-    
+
     ])
 
 calibrate_ensemble_payloads = JSON3.write.([(
@@ -244,14 +263,14 @@ end
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
-        
+
     @testset "ensemble-simulate petrinet" begin
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_base_model01_petrinet.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRHD_base_model01_petrinet.json")]
-       
-        
+
+
         amrs = amrfiles
-        
+
         obj = (
             model_configs = map(1:2) do i
                 (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (Infected = "I", Recovered = "R", Susceptible = "S"))
@@ -279,10 +298,10 @@ end
     @testset "ensemble-simulate stockflow" begin
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_stockflow.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIR_stockflow.json")]
-       
-        
+
+
         amrs = amrfiles
-        
+
         obj = (
             model_configs = map(1:2) do i
                 (id="model_config_id_$i", weight = i / sum(1:2), solution_mappings = (Infected = "I", Recovered = "R", Susceptible = "S"))
@@ -311,7 +330,7 @@ end
         # more complex ensemble_calibrate
         amrs = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sirhd.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/seiarhds.json")]
-    
+
         obj = (
             model_configs = [
                 (id ="sirhd", weight = 1/3, solution_mappings = (Infected = "Infections", Hospitalizations = "hospitalized_population")),
@@ -346,8 +365,8 @@ end
         # more complex ensemble_calibrate
         amrfiles = [SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SEIRD_stockflow.json"),
         SimulationService.get_json("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json")]
-       
-    
+
+
         obj = (
             model_configs = [
                 (id ="seir", weight = 1/3, solution_mappings = (Infected = "I", Recovered = "R")),
@@ -465,5 +484,4 @@ end
             end
         end
     end
-end 
-
+end
