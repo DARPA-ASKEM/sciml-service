@@ -29,6 +29,7 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMRegNetUntyped})
     regnet = ASKEMRegNet()
     param_vals = Dict(p["id"]=>p["value"] for p in input["model"]["parameters"])
 
+    # `x::String` could be either a parameter (e.g. "alpha") or a number (e.g. "0.9")
     resolve_val(x) = x
     resolve_val(x::String) = haskey(param_vals, x) ? param_vals[x] : parse(Float64, x)
 
