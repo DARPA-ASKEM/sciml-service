@@ -43,7 +43,7 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMRegNetUntyped})
       rate = 0
       if haskey(edge, "properties") && haskey(edge["properties"], "rate_constant")
         rate = resolve_val(edge["properties"]["rate_constant"])
-        rate >= 0 || error("Edge rates must be strictly positive")
+        # rate >= 0 || error("Edge rates must be strictly positive")
       end
       add_part!(regnet, :E; src=vertice_idxs[edge["source"]],
                             tgt=vertice_idxs[edge["target"]],
