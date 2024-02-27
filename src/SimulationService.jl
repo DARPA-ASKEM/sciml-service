@@ -113,9 +113,7 @@ function __init__()
     encoded_credentials = Base64.base64encode("$(TDS_USER[]):$(TDS_PASSWORD[])")
     basic_auth_header[] = "Authorization" => "Basic $encoded_credentials"
 
-
-
-    v = Pkg.Types.read_project("Project.toml").version
+    v = Pkg.Types.read_project(joinpath(@__DIR__, "..", "Project.toml")).version
     @info "__init__ SimulationService with Version = $v"
 end
 
