@@ -126,6 +126,7 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMStockFlow})
         add_part!(d,:Stock, s_name = Symbol(name), s_id = Symbol(id),s_initial = new_initial,s_expr = s_expr)
     end
 
+    add_part!(d,:Stock, s_name = :nothing, s_id = :nothing, s_initial = 0, s_expr = only(@variables null)) #stands in for a source or a sink for now
     # remove the "initial condition" parameters after they've been used
     for initial in input[:semantics][:ode][:initials]
         for i in 1:nparts(d,:Parameter)
@@ -139,7 +140,7 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMStockFlow})
         name = Symbol(flow[:name])
         id = Symbol(flow[:id])
         upstream_stock_str = Symbol(flow[:upstream_stock])
-        upstream_stock = only(filter(i -> subpart(d,i,:s_id) == upstream_stock_str, 1:nparts(d,:Stock))) 
+        upstream_stock = only(filter(i -> subpart(d,i,:s_id) == upstream_stock_str, 1:nparts(d,:Stock)))
 
         downstream_stock_str = Symbol(flow[:downstream_stock])
         downstream_stock = only(filter(i -> subpart(d,i,:s_id) == downstream_stock_str, 1:nparts(d,:Stock)))
@@ -167,7 +168,7 @@ function ASKEM_ACSet_to_MTK(sf::ASKEMStockFlow)
     vars_symbolics = [only(@parameters $var) for var in vars_symbols] #ugh the aux_dict line is giving me trouble so I'll do this
     aux_dict = Dict([vars_symbolics[i] => subpart(sf,i,:aux_expr) for i in 1:nparts(sf,:Auxiliary)])
     
-    stock_names = [subpart(sf,n,:s_id) for n in 1:nparts(sf,:Stock)]
+    stock_names = [subpart(sf,n,:s_id) for n in 1:nparts(sf,:Stock) if subpart(sf,n,:s_id) != :nothing]
     stock_funcs = [only(@variables $s(t)) for s in stock_names]
 
     stock_dict = Dict([subpart(sf,i,:s_expr) => stock_funcs[i] for i in 1:nparts(sf,:Stock)])
