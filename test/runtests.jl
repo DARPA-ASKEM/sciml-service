@@ -475,12 +475,25 @@ end
                 test_until_done(id)
             end
         end
+
         @testset "/ensemble-calibrate" begin
             for body in calibrate_ensemble_payloads
                 res = HTTP.post("$url/ensemble-calibrate", ["Content-Type" => "application/json"]; body)
                 @test res.status == 201
                 id = JSON3.read(res.body).simulation_id
                 test_until_done(id)
+            end
+        end
+
+        @testset "/model-equation" begin
+            for body in simulate_ensemble_payloads
+                res = HTTP.post("$url/model-equation", ["Content-Type" => "application/json"]; body)
+                @test res.status == 200
+                response_data = JSON3.read(res.body)
+                @test haskey(response_data, :latex)
+                latex = response_data[:latex]
+                @test typeof(latex) == String
+                # We could check if the response contains the expected LaTeX representation of the models
             end
         end
     end
