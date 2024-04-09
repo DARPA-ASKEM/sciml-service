@@ -107,11 +107,13 @@ function parse_askem_model(input::AbstractDict, ::Type{ASKEMStockFlow})
         add_part!(d,:Auxiliary, aux_id = id, aux_name = name, aux_expr = expr, aux_value = value)
     end
 
-    for obs in input[:semantics][:ode][:observables]
-        id = Symbol(obs[:id])
-        name = Symbol(obs[:name])
-        expr = MathML.parse_str(obs[:expression_mathml])
-        add_part!(d,:Observable,obs_id = id, obs_name = name, obs_expr = expr)
+    if haskey(input[:semantics][:ode],:observables)
+        for obs in input[:semantics][:ode][:observables]
+            id = Symbol(obs[:id])
+            name = Symbol(obs[:name])
+            expr = MathML.parse_str(obs[:expression_mathml])
+            add_part!(d,:Observable,obs_id = id, obs_name = name, obs_expr = expr)
+        end
     end
 
     for stock in input[:model][:stocks]
