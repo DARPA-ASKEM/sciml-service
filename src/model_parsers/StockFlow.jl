@@ -171,7 +171,7 @@ function ASKEM_ACSet_to_MTK(sf::ASKEMStockFlow)
     stock_names = [subpart(sf,n,:s_id) for n in 1:nparts(sf,:Stock) if subpart(sf,n,:s_id) != :nothing]
     stock_funcs = [only(@variables $s(t)) for s in stock_names]
 
-    stock_dict = Dict([subpart(sf,i,:s_expr) => stock_funcs[i] for i in 1:nparts(sf,:Stock)])
+    stock_dict = Dict([subpart(sf,i,:s_expr) => stock_funcs[i] for i in 1:nparts(sf,:Stock) if subpart(sf,i,:s_id) != :nothing])
 
     flow_exprs = [ModelingToolkit.substitute(flow_expr, aux_dict) for flow_expr in aux_flows]
     flow_exprs = [ModelingToolkit.substitute(flow_expr, param_dict) for flow_expr in flow_exprs]
@@ -190,13 +190,13 @@ function ASKEM_ACSet_to_MTK(sf::ASKEMStockFlow)
     inflow_list =  [reduce(+, [flow_exprs[i] for i in inflows(sf,n) if !isempty(inflows(sf,n))], init = 0.0) for n in 1:nparts(sf,:Stock)]
     outflow_list = [reduce(+, [flow_exprs[i] for i in outflows(sf,n) if !isempty(outflows(sf,n))], init = 0.0) for n in 1:nparts(sf,:Stock)]
 
-    eqs = [D(stock_funcs[n]) ~ inflow_list[n] - outflow_list[n] for n in 1:nparts(sf,:Stock)]
+    eqs = [D(stock_funcs[n]) ~ inflow_list[n] - outflow_list[n] for n in 1:nparts(sf,:Stock) if subpart(sf,n,:s_id) != :nothing]
 
     if nparts(sf,:Observable) > 0
         eqs = [eqs ; obs_eqs]
     end
 
-    inits = Dict(stock_funcs .=> [subpart(sf,n,:s_initial) for n in 1:nparts(sf,:Stock)])
+    inits = Dict(stock_funcs .=> [subpart(sf,n,:s_initial) for n in 1:nparts(sf,:Stock) if subpart(sf,n,:s_id) != :nothing])
     paramvals = Dict(paramvars .=> [subpart(sf,n,:p_value) for n in 1:nparts(sf,:Parameter)])
     defaults = merge(inits,paramvals)
     name = subpart(sf,1,:head_name)
