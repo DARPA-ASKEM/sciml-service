@@ -224,7 +224,13 @@ function modelEquation(::HTTP.Request, id::String)
 
     tds_url = "$(TDS_URL[])/models/$id"
     model_json = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body)
-    sys = amr_get(model_json, ODESystem)
+    sys = try 
+        amr_get(model_json, ODESystem)
+    catch e
+        error_string = sprint(showerror,e)
+        return HTTP.Response(422, ["Content-Type" => "text/plain; charset=utf-8"], body=error_string)
+    end
+
 
     model_latex = latexify(sys)
     return Dict([
