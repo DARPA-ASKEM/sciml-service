@@ -129,7 +129,7 @@ function start!(; host=HOST[], port=PORT[], kw...)
     Oxygen.resetstate()
 
 
-    Oxygen.@get     "/model-equation/{id}"  modelEquation
+    Oxygen.@get     "/model-equation/{id}"  model_equation
 
     Oxygen.@get     "/health"               health
     Oxygen.@get     "/status/{id}"          job_status
