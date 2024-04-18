@@ -7,14 +7,14 @@
 # Get `ModelingToolkit.ODESystem` from AMR
 
 function amr_get(amr::JSON3.Object,::Type{ODESystem})
-        schema_url = amr.header.schema
-        if contains(schema_url,"petrinet_schema")
+    schema_url = amr.header.schema
+    if contains(schema_url,"petrinet_schema")
             return amr_get_petrinet(amr)
-        elseif contains(schema_url, "stockflow_schema")
-            return amr_get_stockflow(amr)
-        elseif  contains(schema_url,"regnet_schema")
-            return amr_get_regnet(amr)
-        end
+    elseif contains(schema_url, "stockflow_schema")
+        return amr_get_stockflow(amr)
+    elseif  contains(schema_url,"regnet_schema")
+        return amr_get_regnet(amr)
+    end  
 end
 
 function amr_get_stockflow(amr::JSON3.Object)

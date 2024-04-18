@@ -219,23 +219,21 @@ function job_kill(::HTTP.Request, id::String)
 end
 
 # GET /model-equation/{id}
-function modelEquation(::HTTP.Request, id::String)
+function model_equation(::HTTP.Request, id::String)
     @assert ENABLE_TDS[]
 
     tds_url = "$(TDS_URL[])/models/$id"
     model_json = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body)
-    sys = try 
-        amr_get(model_json, ODESystem)
-    catch e
-        error_string = sprint(showerror,e)
-        return HTTP.Response(422, ["Content-Type" => "text/plain; charset=utf-8"], body=error_string)
+
+    try 
+        sys = amr_get(model_json, ODESystem)
+    
+        model_latex = latexify(sys)
+    catch ex
+        error_string = sprint(showerror,ex)
+        return HTTP.Response(500, "/model-equation failure.  Server error: $error_string")
     end
-
-
-    model_latex = latexify(sys)
-    return Dict([
-        (:latex, model_latex.s)
-    ])
+    return Dict([(:latex, model_latex.s)])
 end
 
 
