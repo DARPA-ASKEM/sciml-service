@@ -206,7 +206,9 @@ end
         obj = SimulationService.get_json(json_url).configuration
         sys = SimulationService.amr_get(obj, ODESystem)
         op = Simulate(sys, (0.0, 99.0))
-        df = solve(op; callback = nothing)
+        call_op = OperationRequest() # to test callback
+        call_op.id = "1"
+        df = solve(op; callback = SimulationService.get_callback(call_op,SimulationService.Simulate))
         @test df isa DataFrame
         @test extrema(df.timestamp) == (0.0, 99.0)
     end
