@@ -240,7 +240,7 @@ end
 # callback for Simulate requests
 function solve(op::Simulate; callback)
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; saveat=1, callback = nothing)
+    sol = solve(prob; saveat=1, callback = callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
