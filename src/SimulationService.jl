@@ -12,7 +12,7 @@ import DifferentialEquations
 import Downloads: download
 import Distributions
 import EasyModelAnalysis
-import HTTP
+import HTTP, Multipart
 import InteractiveUtils: subtypes
 import JobSchedulers
 import JSON3
@@ -546,11 +546,13 @@ function complete(o::OperationRequest)
         return body
     end
 
-    tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-url?filename=$filename"
+    entity = Multipart.Entity(body, "file", filename, "application/octet-stream")
 
-    s3_url = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body).url
+    tds_url = "$(TDS_URL[])/simulations/$(o.id)/upload-file?filename=$filename"
+    request = Multipart.FormRequest(tds_url, [entity])
 
-    HTTP.put(s3_url, header; body=body)
+    HTTP.post(request)
+
     update(o; status = "complete", completed_time = timestamp(), result_files = [filename])
 
     delete!(queue_dict, o.id)
