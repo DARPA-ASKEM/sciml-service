@@ -19,7 +19,7 @@ import JSON3
 import JSONSchema
 import LinearAlgebra: norm
 import MathML
-import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, states, observed, parameters
+import ModelingToolkit: @parameters, substitute, Differential, Num, @variables, ODESystem, ODEProblem, ODESolution, structural_simplify, unknowns, observed, parameters
 import OpenAPI
 import Oxygen
 import Pkg

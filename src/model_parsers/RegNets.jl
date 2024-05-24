@@ -92,5 +92,5 @@ function ASKEM_ACSet_to_MTK(sg::ASKEMRegNetUntyped)
 
     eqs = [D(vertex_funcs[i]) ~ v_rate_vars[i]*vertex_funcs[i] + sum((sg[e,:sign] ? 1 : -1) * e_rate_vars[e] * vertex_funcs[i] * vertex_funcs[sg[e,:src]] for e in incident(sg,i,:tgt); init = 0.0) for i in 1:nv(sg)]
 
-    sys = ODESystem(eqs, t, vertex_funcs, all_params; name = :system, defaults)
+    sys = structural_simplify(ODESystem(eqs, t, vertex_funcs, all_params; name = :system, defaults))
 end

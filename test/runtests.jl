@@ -105,7 +105,7 @@ end
 @testset "Petrinet AMR parsing" begin
     amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
     sys = SimulationService.amr_get(amr.configuration, ODESystem)
-    @test string.(states(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
+    @test string.(unknowns(sys)) == ["Susceptible(t)", "Diagnosed(t)", "Infected(t)", "Ailing(t)", "Recognized(t)", "Healed(t)", "Threatened(t)", "Extinct(t)"]
     @test string.(parameters(sys)) == ["beta", "gamma", "delta", "alpha", "epsilon", "zeta", "lambda", "eta", "rho", "theta", "kappa", "mu", "nu", "xi", "tau", "sigma"]
     @test map(x->string(x.lhs), observed(sys)) == ["Cases(t)", "Hospitalizations(t)", "Deaths(t)"]
 
@@ -117,14 +117,14 @@ end
     df = CSV.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/datasets/SIDARTHE_dataset.csv").body,DataFrame)
     data = SimulationService.amr_get(df, sys, Val(:data))
     @test data isa Vector{Pair{SymbolicUtils.BasicSymbolic{Real}, Tuple{Vector{Int64}, Vector{Float64}}}}
-    @test string.(first.(data)) == string.(states(sys))
+    @test string.(first.(data)) == string.(unknowns(sys))
     @test all(all.(map(first.(last.(data))) do x; x .== 0:89; end))
 end
 
 @testset "Stock and Flow AMR parsing" begin
     amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/SIR_stockflow.json").body)
     sys = SimulationService.amr_get(amr, ODESystem)
-    @test string.(states(sys)) == ["S(t)", "I(t)", "R(t)"]
+    @test string.(unknowns(sys)) == ["S(t)", "I(t)", "R(t)"]
     @test string.(parameters(sys)) == ["p_cbeta","p_N", "p_tr"]
 
     priors = SimulationService.amr_get(amr, sys, Val(:priors))
@@ -138,7 +138,7 @@ end
 @testset "RegNet AMR parsing" begin
     amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/LV_sheep_foxes_regnet.json").body)
     sys = SimulationService.amr_get(amr, ODESystem)
-    @test string.(states(sys)) == ["S(t)", "F(t)"]
+    @test string.(unknowns(sys)) == ["S(t)", "F(t)"]
     @test string.(parameters(sys)) == ["beta","delta", "alpha","gamma"]
 
     priors = SimulationService.amr_get(amr, sys, Val(:priors))
@@ -249,19 +249,19 @@ end
 
         dfsim, dfparam = solve(o, callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
-        statenames = [states(o.sys); getproperty.(observed(o.sys), :lhs)]
+        statenames = [unknowns(o.sys); getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",reduce(vcat,[string.("ensemble",i,"_", statenames) for i in 1:size(dfsim,2)÷length(statenames)]))
         @test names(dfparam) == string.(parameters(sys))
 
-        #calibrate_method = "local"
-        #o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
-        #dfsim, dfparam = SimulationService.solve(o; callback = nothing)
+        calibrate_method = "local"
+        o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
+        dfsim, dfparam = SimulationService.solve(o; callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
         calibrate_method = "global"
         o = SimulationService.Calibrate(sys, (0.0, 89.0), priors, data, num_chains, num_iterations, calibrate_method, ode_method)
         dfsim, dfparam = SimulationService.solve(o; callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
-        statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+        statenames = [unknowns(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
         @test names(dfparam) == string.(parameters(sys))
     end
@@ -417,7 +417,7 @@ end
         op.id = "1"
         dfsim, dfparam = SimulationService.solve(o, callback = SimulationService.get_callback(op,SimulationService.Calibrate))
 
-        statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+        statenames = [unknowns(o.sys);getproperty.(observed(o.sys), :lhs)]
         @test names(dfsim) == vcat("timestamp",string.(statenames))
     end
 end
