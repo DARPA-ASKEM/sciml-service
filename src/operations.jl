@@ -163,7 +163,7 @@ end
 # data
 function amr_get(df::DataFrame, sys::ODESystem, ::Val{:data})
     @info "parse dataset into calibrate format"
-    statelist = states(sys)
+    statelist = unknowns(sys)
     statenames = string.(statelist)
     statenames = [replace(nm, "(t)" => "") for nm in statenames]
                                     
@@ -188,7 +188,7 @@ function (o::IntermediateResults)(integrator)
     (; iter, f, t, u, p) = integrator
     if o.last_callback + o.every == iter
         o.last_callback = iter
-        state_dict = Dict(states(f.sys) .=> u)
+        state_dict = Dict(unknowns(f.sys) .=> u)
         param_dict = Dict(parameters(f.sys) .=> p)
         publish_to_rabbitmq(; iter=iter, state=state_dict, params = param_dict, id=o.id,
             retcode=SciMLBase.check_error(integrator))
@@ -197,12 +197,12 @@ function (o::IntermediateResults)(integrator)
 end
 
 # Intermediate results functor for calibrate
-function (o::IntermediateResults)(p,lossval, ode_sol, ts)
+function (o::IntermediateResults)(state,loss_val, ode_sol, ts)
     if o.last_callback + o.every == o.iter
         o.last_callback = o.iter
-        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> ode_sol.prob.p)
-        state_dict = Dict([state => ode_sol(first(ts))[state] for state in states(ode_sol.prob.f.sys)])
-        publish_to_rabbitmq(; iter = o.iter, loss = lossval, sol_data = state_dict, timesteps = first(ts), params = param_dict, id=o.id)
+        param_dict = Dict(parameters(ode_sol.prob.f.sys) .=> state.u)
+        state_dict = Dict([state => ode_sol(first(ts))[state] for state in unknowns(ode_sol.prob.f.sys)])
+        publish_to_rabbitmq(; iter = o.iter, loss = loss_val, sol_data = state_dict, timesteps = first(ts), params = param_dict, id=o.id)
     end
     o.iter = o.iter + 1
     return false
@@ -210,7 +210,7 @@ end
 #----------------------------------------------------------------------# dataframe_with_observables
 function dataframe_with_observables(sol::ODESolution)
     sys = sol.prob.f.sys
-    names = [states(sys); getproperty.(observed(sys), :lhs)]
+    names = [unknowns(sys); getproperty.(observed(sys), :lhs)]
     cols = ["timestamp" => sol.t; [string(n) => sol[n] for n in names]]
     DataFrame(cols)
 end
@@ -280,7 +280,7 @@ end
 
 function solve(o::Calibrate; callback)
     prob = ODEProblem(o.sys, [], o.timespan)
-    statenames = [states(o.sys);getproperty.(observed(o.sys), :lhs)]
+    statenames = [unknowns(o.sys);getproperty.(observed(o.sys), :lhs)]
 
     # bayesian datafit 
     if o.calibrate_method == "bayesian"
