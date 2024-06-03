@@ -475,6 +475,7 @@ end
                 test_until_done(id)
             end
         end
+
         @testset "/ensemble-calibrate" begin
             for body in calibrate_ensemble_payloads
                 res = HTTP.post("$url/ensemble-calibrate", ["Content-Type" => "application/json"]; body)
@@ -482,6 +483,17 @@ end
                 id = JSON3.read(res.body).simulation_id
                 test_until_done(id)
             end
+        end
+
+        @testset "/model-equation" begin
+            amr = JSON3.read(HTTP.get("https://raw.githubusercontent.com/DARPA-ASKEM/simulation-integration/main/data/models/sidarthe.json").body)
+            response = HTTP.post("$url/model-equation", ["Content-Type" => "application/json"]; amr)
+            @test response.status == 200
+            response_data = JSON3.read(response.body)
+            @test haskey(response_data, :latex)
+            latex = response_data[:latex]
+            @test typeof(latex) == String
+            # We could check if the response contains the expected LaTeX representation of the models
         end
     end
 end
