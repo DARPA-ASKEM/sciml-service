@@ -129,7 +129,7 @@ function start!(; host=HOST[], port=PORT[], kw...)
     Oxygen.resetstate()
 
 
-    Oxygen.@get     "/model-equation/{id}"  modelEquation
+    Oxygen.@get     "/model-equation/{id}"  model_equation
 
     Oxygen.@get     "/health"               health
     Oxygen.@get     "/status/{id}"          job_status
@@ -219,17 +219,21 @@ function job_kill(::HTTP.Request, id::String)
 end
 
 # GET /model-equation/{id}
-function modelEquation(::HTTP.Request, id::String)
+function model_equation(::HTTP.Request, id::String)
     @assert ENABLE_TDS[]
 
     tds_url = "$(TDS_URL[])/models/$id"
     model_json = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body)
-    sys = amr_get(model_json, ODESystem)
 
-    model_latex = latexify(sys)
-    return Dict([
-        (:latex, model_latex.s)
-    ])
+    try 
+        sys = amr_get(model_json, ODESystem)
+    
+        model_latex = latexify(sys)
+    catch ex
+        error_string = sprint(showerror,ex)
+        return HTTP.Response(500, "/model-equation failure.  Server error: $error_string")
+    end
+    return Dict([(:latex, model_latex.s)])
 end
 
 
