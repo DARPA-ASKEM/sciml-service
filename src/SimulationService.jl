@@ -235,7 +235,8 @@ end
 
 # POST /model-equation
 function modelToEquation(req::HTTP.Request)
-    sys = amr_get(req.body, ODESystem)
+    amrJSON = JSON3.read(req.body)
+    sys = amr_get(amrJSON, ODESystem)
     model_latex = latexify(sys)
     return Dict([
         (:latex, model_latex.s)
