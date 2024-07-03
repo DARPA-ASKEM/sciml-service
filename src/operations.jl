@@ -183,19 +183,6 @@ mutable struct IntermediateResults
         new(0, every, id, 0)
     end
 end
-
-function (o::IntermediateResults)(integrator)
-    (; iter, f, t, u, p) = integrator
-    if o.last_callback + o.every == iter
-        o.last_callback = iter
-        state_dict = Dict(unknowns(f.sys) .=> u)
-        param_dict = Dict(parameters(f.sys) .=> p)
-        publish_to_rabbitmq(; iter=iter, state=state_dict, params = param_dict, id=o.id,
-            retcode=SciMLBase.check_error(integrator))
-    end
-    EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
-end
-
 # Intermediate results functor for calibrate
 function (o::IntermediateResults)(state,loss_val, ode_sol, ts)
     if o.last_callback + o.every == o.iter
@@ -234,10 +221,25 @@ function get_callback(o::OperationRequest, ::Type{Simulate})
     DiscreteCallback((args...) -> true, IntermediateResults(o.id,every = 10))
 end
 
+function (o::IntermediateResults)(integrator)
+    (; iter, f, t, u, p, sol) = integrator
+    t_end = sol.prob.tspan[2]
+    percent = round((t/t_end)*100.0, digits = 2)
+    if o.last_callback + o.every == iter
+        o.last_callback = iter
+        #state_dict = Dict(states(f.sys) .=> u)
+        #param_dict = Dict(parameters(f.sys) .=> p)
+        publish_to_rabbitmq(;id=o.id,
+            retcode=SciMLBase.check_error(integrator), percent = percent)
+    end
+    EasyModelAnalysis.DifferentialEquations.u_modified!(integrator, false)
+end
+
+
 # callback for Simulate requests
 function solve(op::Simulate; callback)
     prob = ODEProblem(op.sys, [], op.timespan)
-    sol = solve(prob; progress = true, progress_steps = 1, saveat=1, callback = nothing)
+    sol = solve(prob; saveat=1, callback = callback)
     @info "Timesteps returned are: $(sol.t)"
     dataframe_with_observables(sol)
 end
