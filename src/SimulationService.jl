@@ -130,6 +130,7 @@ function start!(; host=HOST[], port=PORT[], kw...)
 
 
     Oxygen.@get     "/model-equation/{id}"  modelEquation
+    Oxygen.@post    "/model-equation"       modelToEquation
 
     Oxygen.@get     "/health"               health
     Oxygen.@get     "/status/{id}"          job_status
@@ -226,6 +227,16 @@ function modelEquation(::HTTP.Request, id::String)
     model_json = JSON3.read(HTTP.get(tds_url, [basic_auth_header[], json_content_header, snake_case_header]).body)
     sys = amr_get(model_json, ODESystem)
 
+    model_latex = latexify(sys)
+    return Dict([
+        (:latex, model_latex.s)
+    ])
+end
+
+# POST /model-equation
+function modelToEquation(req::HTTP.Request)
+    amrJSON = JSON3.read(req.body)
+    sys = amr_get(amrJSON, ODESystem)
     model_latex = latexify(sys)
     return Dict([
         (:latex, model_latex.s)
